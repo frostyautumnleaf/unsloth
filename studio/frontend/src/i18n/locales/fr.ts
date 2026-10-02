@@ -1896,6 +1896,20 @@ export const fr = {
         "Les anciens échanges vont dans une archive consultable quand un chat sature son contexte.",
       autoCompactKeywords:
         "compaction automatique contexte fenêtre tronquer glissante point de contrôle marge archive récupération recherche rolling checkpoint headroom retrieval rag",
+      compactionMode: "Compaction des conversations longues",
+      compactionModeDescription:
+        "Comment une conversation GGUF locale libère du contexte quand elle est pleine.",
+      compactionModeOff: "Désactivée",
+      compactionModeAuto: "Archiver",
+      compactionModeHandoff: "Transfert",
+      compactionModeKeywords:
+        "compaction automatique contexte fenêtre troncature glissant point de contrôle réserve archive récupération recherche transfert note résumé compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "Consignes du transfert",
+      handoffInstructionsDescription:
+        "Envoyées avec la demande de note, pour que le modèle rédige la note de transfert d'après ces consignes.",
+      handoffThreshold: "Départ du transfert",
+      handoffThresholdDescription:
+        "Lance le transfert lorsque le contexte atteint ce pourcentage de la fenêtre.",
       visibility: {
         collapsed: "Replié",
         auto: "Déplier pendant l’exécution",

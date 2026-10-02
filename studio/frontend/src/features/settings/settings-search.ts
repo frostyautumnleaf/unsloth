@@ -123,7 +123,11 @@ export const SETTINGS_SEARCH_INDEX: Record<SettingsTab, TranslationKey[]> = {
     "settings.general.autoTitleNewChats",
     "settings.chat.projectAttachments",
     "settings.chat.rememberParamsPerModel",
-    "settings.chat.autoCompact",
+    "settings.chat.compactionMode",
+    // Rendered only while Handoff is picked, like the rows they match: a hit on the wrong mode has
+    // no label to scroll to, and search still names the mode row that owns them.
+    "settings.chat.handoffInstructions",
+    "settings.chat.handoffThreshold",
     "settings.chat.autoScroll",
     "settings.chat.scrollToBottomButton",
     "settings.profile.greetingSloth",
@@ -365,7 +369,11 @@ export const SETTINGS_SEARCH_KEYWORDS: Partial<
     "settings.resources.modelMemory.modelMemoryKeywords",
   "settings.resources.modelMemory.noRamReserve":
     "settings.resources.modelMemory.modelMemoryKeywords",
-  "settings.chat.autoCompact": "settings.chat.autoCompactKeywords",
+  // One keyword set for the three rows: the mode names the mechanism, and the two handoff rows are
+  // meaningless without it.
+  "settings.chat.compactionMode": "settings.chat.compactionModeKeywords",
+  "settings.chat.handoffInstructions": "settings.chat.compactionModeKeywords",
+  "settings.chat.handoffThreshold": "settings.chat.compactionModeKeywords",
   // These rows are labelled with what they are, so the verbs people search for live here.
   "settings.chat.thinking.visibility": "settings.chat.visibilityKeywords",
   "settings.chat.tools.visibility": "settings.chat.visibilityKeywords",

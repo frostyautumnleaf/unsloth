@@ -684,6 +684,8 @@ export interface OpenAIChatCompletionsRequest {
   context_policy?: "checkpoint" | "rolling";
   /** Extra share of the prompt budget to drop when a rolling compaction fires. */
   compaction_headroom_ratio?: number;
+  /** Model-written handoff note. A checkpoint reset carries it in place of its own block; rolling ignores it. */
+  handoffNote?: string;
   max_tool_calls_per_message?: number;
   tool_call_timeout?: number;
   session_id?: string;

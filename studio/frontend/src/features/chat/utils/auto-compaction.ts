@@ -1,27 +1,41 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
-/** Local GGUF auto-compaction. On or off; how it compacts is the server's call.
+/** Local GGUF compaction. Off, or the server's own reset, or a handoff the model writes first; which
+ *  reset algorithm runs is still the server's call.
  *
  *  Studio used to offer the policy as a setting, but the choice needed the reader to know what a
  *  checkpoint epoch and a rolling window were before it meant anything, and both sides of it were
  *  already the server's to configure. It now always follows the server, which is what the setting
- *  shipped as anyway (UNSLOTH_CONTEXT_POLICY, default "checkpoint"). */
+ *  shipped as anyway (UNSLOTH_CONTEXT_POLICY, default "checkpoint"). Handoff is orthogonal to that:
+ *  it asks the model for a note before the reset and swaps that note in for the deterministic
+ *  carried block, so the reset itself is untouched. */
 
-export const DEFAULT_AUTO_COMPACT_ENABLED = true;
+export const DEFAULT_COMPACTION_MODE = "auto";
+export const DEFAULT_HANDOFF_THRESHOLD = 0.9;
+export const HANDOFF_INSTRUCTIONS_MAX_CHARS = 4096;
+export const HANDOFF_THRESHOLD_MIN = 0.1;
+export const HANDOFF_THRESHOLD_MAX = 0.95;
+
+/** Pre-filled into the settings text box; appended verbatim to the hidden note-request message. */
+export const DEFAULT_HANDOFF_INSTRUCTIONS =
+  "Write a concise but detailed handoff summary of the work so far: the task, what is done, key decisions and constraints, the current state (files, code, open questions), and the exact next steps. Be specific about names, paths, and values so work can continue without re-reading the dropped turns.";
+
+export type CompactionMode = "off" | "auto" | "handoff";
 
 export function ggufCompactionRequestFields(options: {
   isGguf: boolean;
-  autoCompactEnabled: boolean;
+  compactionMode: CompactionMode;
 }): {
   context_overflow?: "error" | "truncate_oldest";
 } {
   if (!options.isGguf) return {};
-  if (!options.autoCompactEnabled) {
+  if (options.compactionMode === "off") {
     // An omitted field falls back to UNSLOTH_CONTEXT_OVERFLOW, which may still compact. "error" is an
     // explicit refusal of that fallback.
     return { context_overflow: "error" };
   }
-  // No context_policy: the server applies UNSLOTH_CONTEXT_POLICY.
+  // "handoff" still lets the server reset — only the carried content changes, via the note the
+  // frontend sends alongside this. No context_policy: the server applies UNSLOTH_CONTEXT_POLICY.
   return { context_overflow: "truncate_oldest" };
 }

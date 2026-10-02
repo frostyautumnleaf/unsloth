@@ -1859,6 +1859,20 @@ export const it = {
         "I turni più vecchi passano in un archivio consultabile quando una chat riempie il contesto.",
       autoCompactKeywords:
         "compattazione automatica contesto finestra troncare scorrevole checkpoint margine archivio recupero ricerca compaction rolling headroom archive retrieval rag",
+      compactionMode: "Compattazione delle chat lunghe",
+      compactionModeDescription:
+        "Come una chat GGUF locale libera contesto quando si riempie.",
+      compactionModeOff: "Disattivata",
+      compactionModeAuto: "Archivia",
+      compactionModeHandoff: "Passaggio di consegne",
+      compactionModeKeywords:
+        "compattazione automatica contesto finestra troncare scorrevole punto di controllo riserva archivio recupero ricerca passaggio consegne nota riassunto compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "Istruzioni per il passaggio di consegne",
+      handoffInstructionsDescription:
+        "Inviate insieme alla richiesta di nota, così il modello scrive la nota di passaggio da queste.",
+      handoffThreshold: "Avvio del passaggio",
+      handoffThresholdDescription:
+        "Avvia il passaggio quando il contesto raggiunge questa percentuale della finestra.",
       visibility: {
         collapsed: "Compresso",
         auto: "Espandi durante l’esecuzione",

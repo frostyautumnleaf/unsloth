@@ -23,8 +23,10 @@ const transport = readSrc("features/chat/api/chat-api.ts");
 test("local chat opts into the rolling context policy", () => {
   assert.match(adapter, /isGgufForCompaction/);
   assert.match(adapter, /runtime\.loadedIsGguf/);
-  assert.match(adapter, /autoCompactEnabled/);
+  assert.match(adapter, /compactionMode: runtime\.compactionMode/);
   assert.match(adapter, /ggufCompactionRequestFields\(/);
+  // Handoff is the third mode, and its note travels on the same body as the policy fields.
+  assert.match(adapter, /\.\.\.\(handoffNote \? \{ handoffNote \} : \{\}\)/);
   assert.match(adapter, /This conversation was compacted/);
 });
 

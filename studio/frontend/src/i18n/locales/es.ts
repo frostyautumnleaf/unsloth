@@ -1890,6 +1890,20 @@ export const es = {
         "Los turnos antiguos pasan a un archivo consultable al llenarse el contexto de un chat.",
       autoCompactKeywords:
         "compactación compactar automáticamente contexto ventana truncar deslizante checkpoint margen archivo recuperación búsqueda compaction rolling headroom archive retrieval rag",
+      compactionMode: "Compactación de chats largos",
+      compactionModeDescription:
+        "Cómo libera contexto un chat GGUF local cuando se llena.",
+      compactionModeOff: "Desactivada",
+      compactionModeAuto: "Archivar",
+      compactionModeHandoff: "Traspaso",
+      compactionModeKeywords:
+        "compactación automática contexto ventana truncar deslizante punto de control reserva archivo recuperación búsqueda traspaso nota resumen compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "Instrucciones del traspaso",
+      handoffInstructionsDescription:
+        "Se envían con la solicitud de la nota, para que el modelo escriba la nota de traspaso a partir de ellas.",
+      handoffThreshold: "Inicio del traspaso",
+      handoffThresholdDescription:
+        "Inicia el traspaso cuando el contexto alcance este porcentaje de la ventana.",
       visibility: {
         collapsed: "Contraído",
         auto: "Expandir mientras se ejecuta",

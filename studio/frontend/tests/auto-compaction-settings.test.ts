@@ -7,25 +7,34 @@ import { ggufCompactionRequestFields } from "../src/features/chat/utils/auto-com
 
 import { readSrc } from "./helpers/kit.ts";
 
-test("auto-compact on sends truncate_oldest and no policy of its own", () => {
+test("auto sends truncate_oldest and no policy of its own", () => {
   // No context_policy: the server applies UNSLOTH_CONTEXT_POLICY. Studio used to offer that
   // choice as a setting and no longer does, so this is the only shape an enabled request takes.
   assert.deepEqual(
-    ggufCompactionRequestFields({ isGguf: true, autoCompactEnabled: true }),
+    ggufCompactionRequestFields({ isGguf: true, compactionMode: "auto" }),
     { context_overflow: "truncate_oldest" },
   );
 });
 
-test("auto-compact off sends an explicit error overflow policy", () => {
+test("off sends an explicit error overflow policy", () => {
   assert.deepEqual(
-    ggufCompactionRequestFields({ isGguf: true, autoCompactEnabled: false }),
+    ggufCompactionRequestFields({ isGguf: true, compactionMode: "off" }),
     { context_overflow: "error" },
+  );
+});
+
+test("handoff asks for the same reset as auto", () => {
+  // The note changes what the reset CARRIES, not whether it happens, so these fields cannot tell the
+  // two modes apart -- and a handoff whose note never arrived still compacts like auto.
+  assert.deepEqual(
+    ggufCompactionRequestFields({ isGguf: true, compactionMode: "handoff" }),
+    { context_overflow: "truncate_oldest" },
   );
 });
 
 test("external models never opt into GGUF compaction", () => {
   assert.deepEqual(
-    ggufCompactionRequestFields({ isGguf: false, autoCompactEnabled: true }),
+    ggufCompactionRequestFields({ isGguf: false, compactionMode: "auto" }),
     {},
   );
 });
@@ -87,7 +96,7 @@ test("a queued run keeps its own model's llama.cpp verdict after the picker move
     activeNativePathToken: null,
     loadedIsGguf: true,
     loadedContextLength: 8192,
-    autoCompactEnabled: true,
+    compactionMode: "auto",
   };
   const queued = snapshotQueuedChatRunSettings(
     resident as unknown as Parameters<typeof snapshotQueuedChatRunSettings>[0],
@@ -114,8 +123,44 @@ test("a queued run keeps its own model's llama.cpp verdict after the picker move
   assert.deepEqual(
     ggufCompactionRequestFields({
       isGguf,
-      autoCompactEnabled: runtime.autoCompactEnabled,
+      compactionMode: runtime.compactionMode,
     }),
     { context_overflow: "truncate_oldest" },
+  );
+});
+
+test("a saved autoCompactEnabled survives as compactionMode", async () => {
+  // The switch became a tri-state, and a stored "off" was an explicit refusal of the archive:
+  // falling back to the new default here would switch compaction back on for everyone who turned it
+  // off, on an upgrade nobody asked for. The store stubs keep the storage layer off the auth barrel.
+  const { registerStoreStubResolver, installLocalStorageFake } = await import(
+    "./helpers/kit.ts"
+  );
+  registerStoreStubResolver();
+  installLocalStorageFake();
+  const { normalizeSavedChatSettings } = await import(
+    "../src/features/chat/utils/chat-settings-storage.ts"
+  );
+
+  assert.equal(
+    normalizeSavedChatSettings({ autoCompactEnabled: false }).compactionMode,
+    "off",
+  );
+  assert.equal(
+    normalizeSavedChatSettings({ autoCompactEnabled: true }).compactionMode,
+    "auto",
+  );
+  // An explicit mode outranks the legacy key, and a legacy key of the wrong type goes the way of
+  // every other unsanitizable value rather than guessing a mode.
+  assert.equal(
+    normalizeSavedChatSettings({
+      autoCompactEnabled: false,
+      compactionMode: "handoff",
+    }).compactionMode,
+    "handoff",
+  );
+  assert.equal(
+    normalizeSavedChatSettings({ autoCompactEnabled: "yes" }).compactionMode,
+    undefined,
   );
 });

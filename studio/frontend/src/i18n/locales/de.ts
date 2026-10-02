@@ -1899,6 +1899,20 @@ export const de = {
         "Ältere Runden wandern in ein durchsuchbares Archiv, wenn ein Chat voll läuft.",
       autoCompactKeywords:
         "Komprimierung automatisch Kontext Fenster kürzen gleitend Prüfpunkt Reserve Archiv Abruf Suche compaction rolling checkpoint headroom archive retrieval rag",
+      compactionMode: "Komprimierung langer Chats",
+      compactionModeDescription:
+        "Wie ein lokaler GGUF-Chat Kontext freigibt, wenn er voll läuft.",
+      compactionModeOff: "Aus",
+      compactionModeAuto: "Archivieren",
+      compactionModeHandoff: "Übergabe",
+      compactionModeKeywords:
+        "Komprimierung automatisch Kontext Fenster kürzen gleitend Prüfpunkt Reserve Archiv Abruf Suche Übergabe Notiz Zusammenfassung compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "Anweisungen für die Übergabe",
+      handoffInstructionsDescription:
+        "Werden mit der Notizanfrage gesendet, damit das Modell die Übergabe-Notiz danach schreibt.",
+      handoffThreshold: "Start der Übergabe",
+      handoffThresholdDescription:
+        "Die Übergabe beginnt, wenn der Kontext diesen Prozentsatz des Fensters erreicht.",
       visibility: {
         collapsed: "Eingeklappt",
         auto: "Während der Ausführung ausklappen",

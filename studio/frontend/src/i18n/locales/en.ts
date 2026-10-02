@@ -1854,11 +1854,27 @@ export const en = {
       rememberParamsPerModel: "Remember settings per model",
       rememberParamsPerModelDescription:
         "Restore each model's last-used prompt, temperature, and other settings.",
+      // Kept: every non-English overlay still carries these, and the parity check refuses a locale
+      // key en does not define. The row itself moved to compactionMode below.
       autoCompact: "Auto-compact long chats",
       autoCompactDescription:
         "Older turns move to a searchable archive when a chat fills its context.",
       autoCompactKeywords:
         "compaction compact auto-compact context window truncate rolling checkpoint headroom archive retrieval recall rag search",
+      compactionMode: "Long-chat compaction",
+      compactionModeDescription:
+        "How a local GGUF chat frees context when it fills up.",
+      compactionModeOff: "Off",
+      compactionModeAuto: "Archive",
+      compactionModeHandoff: "Handoff",
+      compactionModeKeywords:
+        "compaction compact auto-compact handoff hand-off context window truncate rolling checkpoint archive retrieval recall rag search summary note",
+      handoffInstructions: "Handoff instructions",
+      handoffInstructionsDescription:
+        "Sent with the note request, so the model writes the handoff note from these.",
+      handoffThreshold: "Handoff start",
+      handoffThresholdDescription:
+        "Start the handoff when the context reaches this percentage of the window.",
       visibility: {
         collapsed: "Collapsed",
         auto: "Expand while running",

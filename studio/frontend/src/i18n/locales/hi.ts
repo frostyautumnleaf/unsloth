@@ -1867,6 +1867,20 @@ export const hi = {
         "चैट का कॉन्टेक्स्ट भरने पर पुराने टर्न खोजे जा सकने वाले आर्काइव में चले जाते हैं।",
       autoCompactKeywords:
         "कॉम्पैक्शन कॉम्पैक्ट कॉन्टेक्स्ट विंडो ट्रंकेट स्लाइडिंग चेकपॉइंट हेडरूम आर्काइव पुनर्प्राप्ति खोज compaction rolling checkpoint headroom archive retrieval rag",
+      compactionMode: "लंबी चैट का संपीड़न",
+      compactionModeDescription:
+        "स्थानीय GGUF चैट भरने पर संदर्भ कैसे खाली करता है।",
+      compactionModeOff: "बंद",
+      compactionModeAuto: "संग्रहित करें",
+      compactionModeHandoff: "हैंडऑफ़",
+      compactionModeKeywords:
+        "संपीड़न स्वचालित संदर्भ विंडो ट्रंकेशन रोलिंग चेकपॉइंट रिज़र्व संग्रह खोज हैंडऑफ़ नोट सारांश compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "हैंडऑफ़ निर्देश",
+      handoffInstructionsDescription:
+        "नोट अनुरोध के साथ भेजे जाते हैं, जिससे मॉडल इन्हीं के आधार पर हैंडऑफ़ नोट लिखे।",
+      handoffThreshold: "हैंडऑफ़ की शुरुआत",
+      handoffThresholdDescription:
+        "जब संदर्भ विंडो के इस प्रतिशत तक पहुँचे, हैंडऑफ़ शुरू करें।",
       visibility: {
         collapsed: "संक्षिप्त",
         auto: "चलने के दौरान विस्तृत करें",

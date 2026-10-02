@@ -1821,6 +1821,17 @@ export const zhCN = {
         "聊天填满上下文时，较早的轮次会转入可检索的归档。",
       autoCompactKeywords:
         "压缩 自动压缩 上下文 窗口 截断 滑动 检查点 余量 归档 检索 搜索 compaction rolling checkpoint headroom archive retrieval rag",
+      compactionMode: "长聊天压缩",
+      compactionModeDescription: "本地 GGUF 聊天填满上下文时如何释放空间。",
+      compactionModeOff: "关闭",
+      compactionModeAuto: "归档",
+      compactionModeHandoff: "交接",
+      compactionModeKeywords:
+        "压缩 自动压缩 上下文 窗口 截断 滑动 检查点 余量 归档 检索 搜索 交接 笔记 摘要 compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "交接说明",
+      handoffInstructionsDescription: "随笔记请求一起发送，模型会据此撰写交接笔记。",
+      handoffThreshold: "交接起点",
+      handoffThresholdDescription: "当上下文达到窗口的这个百分比时开始交接。",
       visibility: {
         collapsed: "折叠",
         auto: "运行时展开",

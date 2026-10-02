@@ -243,18 +243,25 @@ def _archive_is_degraded() -> bool:
 
 
 def _compaction_fit_kwargs(
-    context_policy: Optional[str] = None, compaction_headroom_ratio: Optional[float] = None
+    context_policy: Optional[str] = None,
+    compaction_headroom_ratio: Optional[float] = None,
+    handoff_note: Optional[str] = None,
 ) -> dict:
     """Per-request overrides the four rolling-fit call sites share.
 
     Unset values keep the process defaults (UNSLOTH_CONTEXT_POLICY and
     ROLLING_COMPACTION_HEADROOM_RATIO) so an older client is unaffected.
+
+    `handoff_note` reaches only the checkpoint fit: `_fit_context` pops it before the rolling
+    fallback, which has no use for it and would take it as an unknown argument.
     """
     extra: dict = {}
     if context_policy in ("checkpoint", "rolling"):
         extra["context_policy"] = context_policy
     if compaction_headroom_ratio is not None:
         extra["headroom_ratio"] = compaction_headroom_ratio
+    if handoff_note:
+        extra["handoff_note"] = handoff_note
     return extra
 
 
@@ -286,6 +293,8 @@ def _fit_context(messages, **kwargs):
     sticky_is_checkpoint = bool(kwargs.pop("sticky_is_checkpoint", True))
     # Naming a tool the request lacks makes the model print the call as text.
     recall_offered = bool(kwargs.pop("recall_offered", True))
+    # Checkpoint-only, and popped so the rolling fallback below never sees it.
+    handoff_note = kwargs.pop("handoff_note", None)
     requested_policy = kwargs.pop("context_policy", None)
     if requested_policy not in ("checkpoint", "rolling"):
         requested_policy = None
@@ -308,7 +317,11 @@ def _fit_context(messages, **kwargs):
             # header's tool sentence swapped for one that promises no lookup this request
             # cannot perform. If the replay cannot fit, fall through to rolling BELOW.
             fitted, truncation = checkpoint.fit_checkpoint_context(
-                messages, can_reset = False, searchable = False, **kwargs
+                messages,
+                can_reset = False,
+                searchable = False,
+                handoff_note = handoff_note,
+                **kwargs,
             )
             if truncation is not None and truncation.get("fits"):
                 return fitted, truncation
@@ -349,6 +362,7 @@ def _fit_context(messages, **kwargs):
                 messages,
                 can_reset = lambda: not _is_degraded(),
                 searchable = lambda: recall_offered and not _is_degraded(),
+                handoff_note = handoff_note,
                 **kwargs,
             )
             # `can_reset = False` has no phase two, so it refuses once the replayed
@@ -35463,6 +35477,9 @@ class LlamaCppBackend:
         tools_withheld: bool = False,
         thinking_budget_tokens: Optional[int] = None,
         _allow_respawn_retry: bool = True,
+        # Appended, never inserted: a model-written note the checkpoint reset carries in place of its
+        # own block. Absent means the ordinary deterministic carry.
+        handoff_note: Optional[str] = None,
     ) -> Generator[Union[str, dict], None, None]:
         """
         Send a chat completion to llama-server and stream tokens back.
@@ -35571,7 +35588,7 @@ class LlamaCppBackend:
                     keeps_boundary = _keeps_compaction_boundary(thread_id),
                     can_reset = _can_reset,
                     recall_offered = False,
-                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio),
+                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
                 )
                 if truncation:
                     # Inline, not a forged tool exchange: this path sends no tools array,
@@ -35906,6 +35923,8 @@ class LlamaCppBackend:
         on_decode_slot: Optional[Callable[[str, int], None]] = None,
         thinking_budget_tokens: Optional[int] = None,
         mcp_image = None,
+        # See `generate_chat_completion`: the note belongs to the checkpoint fit alone.
+        handoff_note: Optional[str] = None,
     ) -> Generator[dict, None, None]:
         """
         Agentic loop: let the model call tools, execute them, and continue.
@@ -36547,7 +36566,7 @@ class LlamaCppBackend:
                         reserve_tokens = _conversation_recall_reserve(thread_id),
                         sticky_dropped = _iteration_sticky,
                         sticky_is_checkpoint = _iteration_sticky_is_checkpoint,
-                        **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio),
+                        **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
                     )
                     # Accounted for in this request now, whatever the fit decided.
                     _sticky_boundary_applied = True
@@ -36731,7 +36750,7 @@ class LlamaCppBackend:
                             tools_withheld = _memory_tool_withheld(thread_id, tools),
                         ),
                         recall_offered = "search_conversation" in (_enabled_tool_names or ()),
-                        **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio),
+                        **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
                     )
                     # Recorded here, not left to the forwarding below. That list is
                     # drained from INSIDE the reopened stream, so a replacement server
@@ -39279,7 +39298,7 @@ class LlamaCppBackend:
                     reserve_tokens = _conversation_recall_reserve(thread_id),
                     sticky_dropped = _final_sticky,
                     sticky_is_checkpoint = _final_sticky_is_checkpoint,
-                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio),
+                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
                 )
                 _sticky_boundary_applied = True
                 if truncation:
@@ -39443,7 +39462,7 @@ class LlamaCppBackend:
                         # The final pass again, so again no tools array is sent.
                         tools_withheld = True,
                     ),
-                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio),
+                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
                 )
                 if truncation:
                     # Archive only; see the iteration respawn refit above.

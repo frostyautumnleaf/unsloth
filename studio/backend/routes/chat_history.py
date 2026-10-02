@@ -531,9 +531,13 @@ class ChatSettingsPayload(BaseModel):
     showAllQuantizations: Optional[bool] = None
     fitOnDeviceOnly: Optional[bool] = None
     # Off omits context_overflow, so a full window errors instead of silently dropping history.
+    # handoff keeps the server's reset and only swaps in the model's own note for the carried block.
     # contextPolicy/headroom are the per-request overrides for UNSLOTH_CONTEXT_POLICY and
     # ROLLING_COMPACTION_HEADROOM_RATIO.
-    autoCompactEnabled: Optional[bool] = None
+    compactionMode: Optional[Literal["off", "auto", "handoff"]] = None
+    # Same cap the text box enforces, so a PUT from a caller without the box cannot grow it.
+    handoffInstructions: Optional[str] = Field(default = None, max_length = 4096)
+    handoffThreshold: Optional[float] = Field(default = None, ge = 0.1, le = 0.95)
     contextPolicy: Optional[Literal["inherit", "checkpoint", "rolling"]] = None
     compactionHeadroomRatio: Optional[float] = Field(default = None, ge = 0.0, le = 0.9)
 

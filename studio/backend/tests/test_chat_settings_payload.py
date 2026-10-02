@@ -220,16 +220,31 @@ def test_the_rejection_detail_can_be_rendered_as_json():
 def test_auto_compact_settings_round_trip():
     payload = ChatSettingsPayload.model_validate(
         {
-            "autoCompactEnabled": False,
+            "compactionMode": "handoff",
+            "handoffInstructions": "Write the note as bullets.",
+            "handoffThreshold": 0.9,
             "contextPolicy": "rolling",
             "compactionHeadroomRatio": 0.05,
         }
     )
     assert payload.model_dump(exclude_unset = True) == {
-        "autoCompactEnabled": False,
+        "compactionMode": "handoff",
+        "handoffInstructions": "Write the note as bullets.",
+        "handoffThreshold": 0.9,
         "contextPolicy": "rolling",
         "compactionHeadroomRatio": 0.05,
     }
+
+
+def test_handoff_bounds_are_the_sliders_and_the_text_box():
+    # A note request has to fit inside the window it is asking about, so the threshold stays under
+    # 1.0, and the instructions carry the cap the box enforces.
+    with pytest.raises(ValidationError):
+        ChatSettingsPayload.model_validate({"handoffThreshold": 1.0})
+    with pytest.raises(ValidationError):
+        ChatSettingsPayload.model_validate({"handoffThreshold": 0.05})
+    with pytest.raises(ValidationError):
+        ChatSettingsPayload.model_validate({"handoffInstructions": "x" * 4097})
 
 
 def test_auto_compact_settings_can_inherit_the_server_policy():

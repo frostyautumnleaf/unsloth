@@ -968,6 +968,15 @@ def _request_compaction_headroom_ratio(payload) -> Optional[float]:
     return clamp_compaction_headroom_ratio(getattr(payload, "compaction_headroom_ratio", None))
 
 
+def _request_handoff_note(payload) -> Optional[str]:
+    """The model-written handoff note, camelCase because the client names it. Trimmed here so a
+    whitespace-only note reads as absent and the reset keeps its deterministic carry."""
+    note = getattr(payload, "handoffNote", None)
+    if isinstance(note, str) and note.strip():
+        return note.strip()
+    return None
+
+
 def _overflow_truncation_requested(payload) -> bool:
     """True when the request (or the UNSLOTH_CONTEXT_OVERFLOW server default,
     for clients that cannot send custom fields) opted into truncation."""
@@ -28000,6 +28009,7 @@ async def produce_openai_chat_completions(
                     context_overflow = _rolling_context_policy(payload),
                     context_policy = _request_context_policy(payload),
                     compaction_headroom_ratio = _request_compaction_headroom_ratio(payload),
+                    handoff_note = _request_handoff_note(payload),
                 )
 
             _tool_admission_mode = "chat_tool_stream" if payload.stream else "chat_tool_nonstream"
@@ -28823,6 +28833,7 @@ async def produce_openai_chat_completions(
                 context_overflow = _rolling_context_policy(payload),
                 context_policy = _request_context_policy(payload),
                 compaction_headroom_ratio = _request_compaction_headroom_ratio(payload),
+                handoff_note = _request_handoff_note(payload),
                 thread_id = payload.thread_id,
                 # These requests suppress the tool loop AND are excluded from the checkpoint
                 # repair above, so search_conversation is offered neither now nor on the

@@ -92,7 +92,12 @@ import {
   migrateLegacyQwenDefaults,
   type QwenDefaultsMigration,
 } from "../utils/qwen-defaults-migration";
-import { DEFAULT_AUTO_COMPACT_ENABLED } from "../utils/auto-compaction";
+import {
+  DEFAULT_COMPACTION_MODE,
+  DEFAULT_HANDOFF_INSTRUCTIONS,
+  DEFAULT_HANDOFF_THRESHOLD,
+  type CompactionMode,
+} from "../utils/auto-compaction";
 import { preserveThinkingDefaultFromLoad } from "../lib/resolve-preserve-thinking-default";
 import {
   THREAD_SCOPED_PARAM_KEYS,
@@ -2399,7 +2404,10 @@ type ChatRuntimeStore = {
   generatingStatus: string | null;
   autoHealToolCalls: boolean;
   nudgeToolCalls: boolean;
-  autoCompactEnabled: boolean;
+  /** Off keeps the window hard, auto is the server's reset, handoff writes a note into that reset. */
+  compactionMode: CompactionMode;
+  handoffInstructions: string;
+  handoffThreshold: number;
   maxToolCallsPerMessage: number;
   toolCallTimeout: number;
   kvCacheDtype: string | null;
@@ -2693,7 +2701,9 @@ type ChatRuntimeStore = {
   clearActiveDiffusionCanvasForThread: (threadId: string | null) => void;
   setAutoHealToolCalls: (enabled: boolean) => void;
   setNudgeToolCalls: (enabled: boolean) => void;
-  setAutoCompactEnabled: (enabled: boolean) => void;
+  setCompactionMode: (mode: CompactionMode) => void;
+  setHandoffInstructions: (instructions: string) => void;
+  setHandoffThreshold: (threshold: number) => void;
   setMaxToolCallsPerMessage: (value: number) => void;
   setToolCallTimeout: (value: number) => void;
   setGpuMemoryMode: (mode: "auto" | "manual") => void;
@@ -2738,7 +2748,9 @@ type ScalarSettingKey =
   | "searchImages"
   | "autoHealToolCalls"
   | "nudgeToolCalls"
-  | "autoCompactEnabled"
+  | "compactionMode"
+  | "handoffInstructions"
+  | "handoffThreshold"
   | "maxToolCallsPerMessage"
   | "toolCallTimeout"
   | "reasoningEnabled"
@@ -2789,7 +2801,9 @@ const SCALAR_SETTING_KEYS = [
   "searchImages",
   "autoHealToolCalls",
   "nudgeToolCalls",
-  "autoCompactEnabled",
+  "compactionMode",
+  "handoffInstructions",
+  "handoffThreshold",
   "maxToolCallsPerMessage",
   "toolCallTimeout",
   "reasoningEnabled",
@@ -4183,7 +4197,9 @@ export const useChatRuntimeStore = create<ChatRuntimeStore>((set, get) => ({
   activeDiffusionCanvasByThreadId: {},
   autoHealToolCalls: true,
   nudgeToolCalls: true,
-  autoCompactEnabled: DEFAULT_AUTO_COMPACT_ENABLED,
+  compactionMode: DEFAULT_COMPACTION_MODE,
+  handoffInstructions: DEFAULT_HANDOFF_INSTRUCTIONS,
+  handoffThreshold: DEFAULT_HANDOFF_THRESHOLD,
   maxToolCallsPerMessage: 25,
   toolCallTimeout: 5,
   kvCacheDtype: null,
@@ -5819,15 +5835,39 @@ export const useChatRuntimeStore = create<ChatRuntimeStore>((set, get) => ({
         queuedSettingsEpoch: state.queuedSettingsEpoch + 1,
       };
     }),
-  setAutoCompactEnabled: (autoCompactEnabled) =>
+  setCompactionMode: (compactionMode) =>
     set((state) => {
       setScalarSettingVersion(
-        "autoCompactEnabled",
-        autoCompactEnabled,
-        state.autoCompactEnabled,
+        "compactionMode",
+        compactionMode,
+        state.compactionMode,
       );
       return {
-        autoCompactEnabled,
+        compactionMode,
+        queuedSettingsEpoch: state.queuedSettingsEpoch + 1,
+      };
+    }),
+  setHandoffInstructions: (handoffInstructions) =>
+    set((state) => {
+      setScalarSettingVersion(
+        "handoffInstructions",
+        handoffInstructions,
+        state.handoffInstructions,
+      );
+      return {
+        handoffInstructions,
+        queuedSettingsEpoch: state.queuedSettingsEpoch + 1,
+      };
+    }),
+  setHandoffThreshold: (handoffThreshold) =>
+    set((state) => {
+      setScalarSettingVersion(
+        "handoffThreshold",
+        handoffThreshold,
+        state.handoffThreshold,
+      );
+      return {
+        handoffThreshold,
         queuedSettingsEpoch: state.queuedSettingsEpoch + 1,
       };
     }),

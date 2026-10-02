@@ -118,6 +118,13 @@ import {
 import { readThreadCreationClaim } from "../utils/chat-thread-creation-claim";
 import { ggufCompactionRequestFields } from "../utils/auto-compaction";
 import {
+  generateHandoffNote,
+  handoffNoteTokenBudget,
+  lastHandoffAt,
+  recordHandoff,
+  shouldRunHandoff,
+} from "../utils/handoff-compaction";
+import {
   studioToolHistoryRequestFields,
   type ToolHistoryMessage,
 } from "../utils/studio-tool-history";
@@ -6549,20 +6556,21 @@ export function createOpenAIStreamAdapter(
             };
           }
 
-          return {
-            model: params.checkpoint,
-            messages: outboundMessages,
-            stream: true,
-            ...(continuation ? { continue_final_message: true } : {}),
-            ...studioToolHistoryRequestFieldsAfterReplay(
-              survivingMessages as unknown as ToolHistoryMessage[],
-            ),
-            // Opt into the trailing usage chunk so the context bar and tok/s populate (backend gates it).
-            stream_options: { include_usage: true },
-            ...ggufCompactionRequestFields({
-              isGguf: isGgufForCompaction,
-              autoCompactEnabled: runtime.autoCompactEnabled,
-            }),
+          // How this turn samples, in one object, so the handoff note request can carry the very same
+          // numbers. The server's own compaction is handed the live request and inherits them from it;
+          // a note written at the server's defaults would be a settings change nobody made - and the
+          // note is the one thing that survives into every later turn.
+          const runSamplingFields: Pick<
+            OpenAIChatCompletionsRequest,
+            | "temperature"
+            | "top_p"
+            | "max_tokens"
+            | "top_k"
+            | "min_p"
+            | "repetition_penalty"
+            | "presence_penalty"
+            | "seed"
+          > = {
             temperature: params.temperature,
             top_p: params.topP,
             max_tokens: params.maxTokens,
@@ -6575,6 +6583,85 @@ export function createOpenAIStreamAdapter(
             ...(params.seed == null || !modelReadsSamplingSeed(activeModel)
               ? {}
               : { seed: params.seed }),
+          };
+          // Handoff: at the threshold the model writes the note the checkpoint reset carries in place of
+          // the deterministic block. It needs a model round-trip the stateless fitter cannot make, so it
+          // happens here, as a side call on the way out, and rides along on THIS turn. Here rather than
+          // at the top of the run because it is sampled with the fields above, on the outbound history
+          // exactly as this request is about to send it: anything else is a different chat, and the
+          // note has to be the one this window asked for.
+          let handoffNote: string | null = null;
+          const handoffUsage =
+            (resolvedThreadId
+              ? useChatRuntimeStore.getState().contextUsageByThreadId[
+                  resolvedThreadId
+                ]
+              : undefined) ?? runtime.contextUsage;
+          // The window this model was loaded with, not the one Auto would have picked.
+          const handoffWindow =
+            runtime.loadedCustomContextLength ?? runtime.loadedContextLength;
+          if (
+            runtime.compactionMode === "handoff" &&
+            isGgufForCompaction &&
+            shouldRunHandoff({
+              contextUsage: handoffUsage,
+              contextLength: handoffWindow,
+              threshold: runtime.handoffThreshold,
+              alreadyHandedOffAt: lastHandoffAt(resolvedThreadId ?? null),
+            })
+          ) {
+            handoffNote = await generateHandoffNote({
+              model: params.checkpoint,
+              messages: outboundMessages,
+              instructions: runtime.handoffInstructions,
+              maxTokens: handoffNoteTokenBudget({
+                contextLength: handoffWindow ?? 0,
+                maxTokens: params.maxTokens,
+              }),
+              // Everything this request samples with. What the note request leaves out is the run's
+              // plumbing rather than its settings - see generateHandoffNote.
+              fields: {
+                ...runSamplingFields,
+                ...localReasoningFields,
+                ...(supportsPreserveThinking
+                  ? { preserve_thinking: preserveThinking }
+                  : {}),
+                ...studioToolHistoryRequestFieldsAfterReplay(
+                  survivingMessages as unknown as ToolHistoryMessage[],
+                ),
+                ...ggufCompactionRequestFields({
+                  isGguf: isGgufForCompaction,
+                  compactionMode: runtime.compactionMode,
+                }),
+              },
+              abortSignal: runSignal,
+            });
+            // Recorded even when no note came back: a model that ignored the block should not be
+            // asked again on every send until the window has actually grown.
+            recordHandoff(
+              resolvedThreadId ?? null,
+              handoffUsage?.promptTokens ?? 0,
+            );
+          }
+
+          return {
+            model: params.checkpoint,
+            messages: outboundMessages,
+            stream: true,
+            ...(continuation ? { continue_final_message: true } : {}),
+            ...studioToolHistoryRequestFieldsAfterReplay(
+              survivingMessages as unknown as ToolHistoryMessage[],
+            ),
+            // Opt into the trailing usage chunk so the context bar and tok/s populate (backend gates it).
+            stream_options: { include_usage: true },
+            ...ggufCompactionRequestFields({
+              isGguf: isGgufForCompaction,
+              compactionMode: runtime.compactionMode,
+            }),
+            // The note this turn asked for, if any. Absent means the server carries its own
+            // deterministic block, which is what every pre-handoff request did.
+            ...(handoffNote ? { handoffNote } : {}),
+            ...runSamplingFields,
             // Turn-scoped, not thread-scoped. These are the CURRENT turn's attachment channel; history media rides
             // along inside messages[].content. Sending a stale screenshot from an earlier turn made the backend see a
             // non-empty media field on every later text-only turn and refuse the durable run with 400 "Media chat

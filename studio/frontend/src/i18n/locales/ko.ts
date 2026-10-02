@@ -1856,6 +1856,18 @@ export const ko = {
         "채팅이 컨텍스트를 모두 채우면 오래된 턴은 검색 가능한 보관소로 옮겨집니다.",
       autoCompactKeywords:
         "압축 자동 컨텍스트 윈도우 자르기 슬라이딩 체크포인트 여유 보관 검색 회수 compaction rolling checkpoint headroom archive retrieval rag",
+      compactionMode: "긴 채팅 압축",
+      compactionModeDescription: "로컬 GGUF 채팅이 가득 찼을 때 컨텍스트를 비우는 방식입니다.",
+      compactionModeOff: "끄기",
+      compactionModeAuto: "보관",
+      compactionModeHandoff: "인계",
+      compactionModeKeywords:
+        "압축 자동 압축 컨텍스트 창 잘라내기 슬라이딩 체크포인트 여유 보관 검색 회수 인계 노트 요약 compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "인계 지침",
+      handoffInstructionsDescription:
+        "노트 요청과 함께 전송되므로 모델이 이 지침에 따라 인계 노트를 작성합니다.",
+      handoffThreshold: "인계 시작 시점",
+      handoffThresholdDescription: "컨텍스트가 창의 이 비율에 도달하면 인계를 시작합니다.",
       visibility: {
         collapsed: "접힘",
         auto: "실행 중 펼치기",

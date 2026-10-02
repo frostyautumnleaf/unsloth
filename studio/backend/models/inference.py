@@ -2566,6 +2566,14 @@ class ChatCompletionRequest(BaseModel):
             "for checkpoint compaction. Unset keeps the process default."
         ),
     )
+    handoffNote: Optional[str] = Field(
+        None,
+        description = (
+            "[x-unsloth] A model-written handoff note for checkpoint compaction. When "
+            "present, the reset carries this note in the system message in place of the "
+            "deterministic carried_forward block. Ignored by rolling compaction."
+        ),
+    )
     studio_tool_history: Optional[bool] = Field(
         None,
         description = (

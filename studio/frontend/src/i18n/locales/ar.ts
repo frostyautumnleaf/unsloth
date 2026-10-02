@@ -1861,6 +1861,20 @@ export const ar = {
         "تنتقل الأدوار الأقدم إلى أرشيف قابل للبحث عندما تمتلئ نافذة سياق المحادثة.",
       autoCompactKeywords:
         "ضغط تلقائي سياق نافذة اقتطاع منزلقة نقطة تحقق هامش أرشيف استرجاع بحث compaction rolling checkpoint headroom archive retrieval rag",
+      compactionMode: "ضغط المحادثات الطويلة",
+      compactionModeDescription:
+        "كيف تحرر محادثة GGUF المحلية السياق عند امتلائها.",
+      compactionModeOff: "إيقاف",
+      compactionModeAuto: "أرشفة",
+      compactionModeHandoff: "تسليم",
+      compactionModeKeywords:
+        "ضغط تلقائي سياق نافذة اقتطاع متدحرج نقطة تفتيش احتياطي أرشفة استرجاع بحث تسليم ملاحظة ملخص compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "تعليمات التسليم",
+      handoffInstructionsDescription:
+        "تُرسل مع طلب الملاحظة ليكتب النموذج ملاحظة التسليم بناءً عليها.",
+      handoffThreshold: "بداية التسليم",
+      handoffThresholdDescription:
+        "ابدأ التسليم عندما يصل السياق إلى هذه النسبة المئوية من النافذة.",
       visibility: {
         collapsed: "مطوي",
         auto: "التوسيع أثناء التشغيل",

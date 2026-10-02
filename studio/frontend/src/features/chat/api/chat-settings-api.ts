@@ -73,8 +73,12 @@ export interface PersistedChatSettings {
   expandQuantizations?: boolean;
   showAllQuantizations?: boolean;
   fitOnDeviceOnly?: boolean;
-  /** Local GGUF chats: drop oldest turns instead of erroring at the window. */
-  autoCompactEnabled?: boolean;
+  /** Local GGUF compaction: "off" errors at the window, "auto" is the archive reset, "handoff" has the model write a handoff note. */
+  compactionMode?: "off" | "auto" | "handoff";
+  /** Appended to the handoff system message; 4096 chars max. */
+  handoffInstructions?: string;
+  /** Fraction of the context window (0.1-0.95) at which handoff starts. */
+  handoffThreshold?: number;
 }
 
 interface ChatSettingsResponse {

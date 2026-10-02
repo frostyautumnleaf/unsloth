@@ -9,7 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DEFAULT_THINKING_VISIBILITY,
   DEFAULT_TOOL_VISIBILITY,
@@ -21,6 +23,10 @@ import {
   useChatRuntimeStore,
   usePlusMenuPrefsStore,
 } from "@/features/chat";
+import {
+  HANDOFF_INSTRUCTIONS_MAX_CHARS,
+  type CompactionMode,
+} from "@/features/chat/utils/auto-compaction";
 import { PASTED_TEXT_THRESHOLD_CHOICES } from "@/features/chat/utils/pasted-text";
 import { refreshContextUsage } from "@/features/chat/utils/refresh-context-usage";
 import { formatBindingLabel, isMacPlatform } from "../lib/keyboard-shortcuts";
@@ -164,11 +170,21 @@ export function ChatTab() {
   const setRememberParamsPerModel = useChatRuntimeStore(
     (state) => state.setRememberParamsPerModel,
   );
-  const autoCompactEnabled = useChatRuntimeStore(
-    (state) => state.autoCompactEnabled,
+  const compactionMode = useChatRuntimeStore((state) => state.compactionMode);
+  const setCompactionMode = useChatRuntimeStore(
+    (state) => state.setCompactionMode,
   );
-  const setAutoCompactEnabled = useChatRuntimeStore(
-    (state) => state.setAutoCompactEnabled,
+  const handoffInstructions = useChatRuntimeStore(
+    (state) => state.handoffInstructions,
+  );
+  const setHandoffInstructions = useChatRuntimeStore(
+    (state) => state.setHandoffInstructions,
+  );
+  const handoffThreshold = useChatRuntimeStore(
+    (state) => state.handoffThreshold,
+  );
+  const setHandoffThreshold = useChatRuntimeStore(
+    (state) => state.setHandoffThreshold,
   );
   const showGreetingSloth = useUserProfileStore((s) => s.showGreetingSloth);
   const setShowGreetingSloth = useUserProfileStore(
@@ -415,16 +431,81 @@ export function ChatTab() {
           </Select>
         </SettingsRow>
         <SettingsRow
-          label={t("settings.chat.autoCompact")}
-          description={t("settings.chat.autoCompactDescription")}
+          label={t("settings.chat.compactionMode")}
+          description={t("settings.chat.compactionModeDescription")}
           hint={t("settings.chat.autoCompactHint")}
         >
-          <Switch
-            aria-label={t("settings.chat.autoCompact")}
-            checked={autoCompactEnabled}
-            onCheckedChange={setAutoCompactEnabled}
-          />
+          <Select
+            value={compactionMode}
+            onValueChange={(value) => setCompactionMode(value as CompactionMode)}
+          >
+            <SelectTrigger
+              className="w-36"
+              aria-label={t("settings.chat.compactionMode")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">
+                {t("settings.chat.compactionModeOff")}
+              </SelectItem>
+              <SelectItem value="auto">
+                {t("settings.chat.compactionModeAuto")}
+              </SelectItem>
+              <SelectItem value="handoff">
+                {t("settings.chat.compactionModeHandoff")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </SettingsRow>
+        {compactionMode === "handoff" ? (
+          <>
+            <SettingsRow
+              label={t("settings.chat.handoffInstructions")}
+              description={t("settings.chat.handoffInstructionsDescription")}
+              below={
+                <span className="text-ui-11 text-muted-foreground tabular-nums">
+                  {handoffInstructions.length.toLocaleString()} /
+                  {HANDOFF_INSTRUCTIONS_MAX_CHARS.toLocaleString()}
+                </span>
+              }
+            >
+              <Textarea
+                // The row right-aligns a wrapped control, so the box only needs a width that
+                // leaves the label its own line on the narrowest panel the sheet allows.
+                className="w-[min(28rem,calc(100vw-14rem))] min-h-24 text-xs leading-5"
+                fieldSizing="fixed"
+                rows={5}
+                maxLength={HANDOFF_INSTRUCTIONS_MAX_CHARS}
+                aria-label={t("settings.chat.handoffInstructions")}
+                value={handoffInstructions}
+                onChange={(event) => setHandoffInstructions(event.target.value)}
+              />
+            </SettingsRow>
+            <SettingsRow
+              label={t("settings.chat.handoffThreshold")}
+              description={t("settings.chat.handoffThresholdDescription")}
+            >
+              <div className="flex w-64 items-center gap-3">
+                <Slider
+                  // A whole percent on the slider, a fraction on the wire and in the gate.
+                  value={[Math.round(handoffThreshold * 100)]}
+                  min={10}
+                  max={95}
+                  step={5}
+                  onValueChange={(values: number[]) =>
+                    setHandoffThreshold((values[0] ?? 90) / 100)
+                  }
+                  className="panel-slider"
+                  aria-label={t("settings.chat.handoffThreshold")}
+                />
+                <span className="w-10 shrink-0 text-right text-ui-12 font-medium text-foreground tabular-nums">
+                  {Math.round(handoffThreshold * 100)}%
+                </span>
+              </div>
+            </SettingsRow>
+          </>
+        ) : null}
         <SettingsRow
           label={t("settings.chat.autoScroll")}
           description={t("settings.chat.autoScrollDescription")}

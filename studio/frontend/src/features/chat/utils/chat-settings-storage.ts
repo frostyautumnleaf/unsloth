@@ -24,6 +24,12 @@ import {
 import type { ReasoningEffort } from "../stores/chat-runtime-store";
 import { MAX_SAMPLING_SEED } from "../types/runtime";
 import {
+  HANDOFF_INSTRUCTIONS_MAX_CHARS,
+  HANDOFF_THRESHOLD_MAX,
+  HANDOFF_THRESHOLD_MIN,
+  type CompactionMode,
+} from "./auto-compaction";
+import {
   assignSanitizedMirroredSettings,
   hasNoMirroredSettings,
 } from "./mirrored-chat-settings";
@@ -72,6 +78,8 @@ const REASONING_EFFORTS = new Set<string>([
   "max",
   "xhigh",
 ]);
+
+const COMPACTION_MODES = new Set<string>(["off", "auto", "handoff"]);
 
 interface LegacySystemPromptTemplate {
   name: string;
@@ -255,9 +263,43 @@ function sanitizeInt(value: unknown, min: number): number | undefined {
     : undefined;
 }
 
+function sanitizeCompactionMode(value: unknown): CompactionMode | undefined {
+  return typeof value === "string" && COMPACTION_MODES.has(value)
+    ? (value as CompactionMode)
+    : undefined;
+}
+
+// Truncated rather than dropped: a value written by a build with a larger cap still carries the
+// start of the instructions the user typed, which is what the note request needs.
+function sanitizeHandoffInstructions(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const instructions = value.trim().slice(0, HANDOFF_INSTRUCTIONS_MAX_CHARS);
+  return instructions.length > 0 ? instructions : undefined;
+}
+
+// A fraction, not a percent: the slider shows percent, the gate compares tokens against the window.
+function sanitizeHandoffThreshold(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.min(
+    Math.max(value, HANDOFF_THRESHOLD_MIN),
+    HANDOFF_THRESHOLD_MAX,
+  );
+}
+
 /** Read-only migration; outgoing numeric patches do not imply user intent. */
 export function normalizeSavedChatSettings(value: unknown): PersistedChatSettings {
   const settings = sanitizeChatSettings(value);
+  // The auto-compact switch became `compactionMode`, and a stored "off" is an explicit refusal of the
+  // archive rather than an untouched default: losing it would switch compaction back on for everyone
+  // who turned it off, on an upgrade they never asked for. Read-only, like the min-p normalisation
+  // below it - a value the last build wrote is not a request to write one.
+  if (
+    settings.compactionMode === undefined &&
+    isRecord(value) &&
+    typeof value.autoCompactEnabled === "boolean"
+  ) {
+    settings.compactionMode = value.autoCompactEnabled ? "auto" : "off";
+  }
   if (settings.inferenceParams) {
     settings.inferenceParams = normalizeSavedMinP(settings.inferenceParams);
   }
@@ -298,7 +340,11 @@ export function sanitizeChatSettings(value: unknown): PersistedChatSettings {
   );
   const autoHealToolCalls = sanitizeBool(value.autoHealToolCalls);
   const nudgeToolCalls = sanitizeBool(value.nudgeToolCalls);
-  const autoCompactEnabled = sanitizeBool(value.autoCompactEnabled);
+  const compactionMode = sanitizeCompactionMode(value.compactionMode);
+  const handoffInstructions = sanitizeHandoffInstructions(
+    value.handoffInstructions,
+  );
+  const handoffThreshold = sanitizeHandoffThreshold(value.handoffThreshold);
   const maxToolCallsPerMessage = sanitizeInt(value.maxToolCallsPerMessage, 0);
   const toolCallTimeout = sanitizeInt(value.toolCallTimeout, 1);
 
@@ -330,8 +376,12 @@ export function sanitizeChatSettings(value: unknown): PersistedChatSettings {
   if (nudgeToolCalls !== undefined) {
     settings.nudgeToolCalls = nudgeToolCalls;
   }
-  if (autoCompactEnabled !== undefined) {
-    settings.autoCompactEnabled = autoCompactEnabled;
+  if (compactionMode !== undefined) settings.compactionMode = compactionMode;
+  if (handoffInstructions !== undefined) {
+    settings.handoffInstructions = handoffInstructions;
+  }
+  if (handoffThreshold !== undefined) {
+    settings.handoffThreshold = handoffThreshold;
   }
   if (maxToolCallsPerMessage !== undefined) {
     settings.maxToolCallsPerMessage = maxToolCallsPerMessage;
@@ -397,7 +447,9 @@ export function isEmptyChatSettings(settings: PersistedChatSettings): boolean {
     settings.allowArtifactNetworkAccess === undefined &&
     settings.autoHealToolCalls === undefined &&
     settings.nudgeToolCalls === undefined &&
-    settings.autoCompactEnabled === undefined &&
+    settings.compactionMode === undefined &&
+    settings.handoffInstructions === undefined &&
+    settings.handoffThreshold === undefined &&
     settings.maxToolCallsPerMessage === undefined &&
     settings.toolCallTimeout === undefined &&
     hasNoMirroredSettings(settings)

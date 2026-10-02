@@ -1845,6 +1845,17 @@ export const ja = {
         "チャットの文脈が満杯になると、古いターンは検索可能なアーカイブに移ります。",
       autoCompactKeywords:
         "圧縮 自動圧縮 コンテキスト ウィンドウ 切り詰め スライディング チェックポイント 余裕 アーカイブ 検索 取得 compaction rolling headroom archive retrieval rag",
+      compactionMode: "長いチャットの圧縮",
+      compactionModeDescription: "ローカル GGUF チャットがいっぱいになったときに文脈を解放する方法。",
+      compactionModeOff: "オフ",
+      compactionModeAuto: "アーカイブ",
+      compactionModeHandoff: "引き継ぎ",
+      compactionModeKeywords:
+        "圧縮 自動圧縮 コンテキスト ウィンドウ 切り詰め スライディング チェックポイント 余裕 アーカイブ 検索 取得 引き継ぎ ノート 要約 compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "引き継ぎの指示",
+      handoffInstructionsDescription: "ノートの依頼と一緒に送られ、モデルはこの指示に沿って引き継ぎノートを書きます。",
+      handoffThreshold: "引き継ぎの開始位置",
+      handoffThresholdDescription: "コンテキストがウィンドウのこの割合に達したら引き継ぎを始めます。",
       visibility: {
         collapsed: "折りたたむ",
         auto: "実行中は展開",

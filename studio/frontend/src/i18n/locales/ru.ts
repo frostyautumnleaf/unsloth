@@ -1873,6 +1873,20 @@ export const ru = {
         "Старые ходы уходят в доступный для поиска архив, когда чат заполняет контекст.",
       autoCompactKeywords:
         "сжатие автоматически контекст окно обрезка скользящее контрольная точка запас архив поиск извлечение compaction rolling checkpoint headroom archive retrieval rag",
+      compactionMode: "Сжатие длинных чатов",
+      compactionModeDescription:
+        "Как локальный GGUF-чат освобождает контекст, когда он заполняется.",
+      compactionModeOff: "Выключено",
+      compactionModeAuto: "Архив",
+      compactionModeHandoff: "Передача",
+      compactionModeKeywords:
+        "сжатие автоматически контекст окно усечение скользящее контрольная точка резерв архив выдача поиск передача заметка резюме compaction rolling checkpoint headroom archive retrieval rag handoff note",
+      handoffInstructions: "Инструкции для передачи",
+      handoffInstructionsDescription:
+        "Отправляются вместе с запросом заметки, чтобы модель написала по ним заметку о передаче.",
+      handoffThreshold: "Начало передачи",
+      handoffThresholdDescription:
+        "Начинать передачу, когда контекст достигнет этого процента окна.",
       visibility: {
         collapsed: "Свёрнуто",
         auto: "Разворачивать во время работы",
