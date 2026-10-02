@@ -345,6 +345,7 @@ export function sanitizeChatSettings(value: unknown): PersistedChatSettings {
     value.handoffInstructions,
   );
   const handoffThreshold = sanitizeHandoffThreshold(value.handoffThreshold);
+  const deduplicateToolCalls = sanitizeBool(value.deduplicateToolCalls);
   const maxToolCallsPerMessage = sanitizeInt(value.maxToolCallsPerMessage, 0);
   const toolCallTimeout = sanitizeInt(value.toolCallTimeout, 1);
 
@@ -382,6 +383,9 @@ export function sanitizeChatSettings(value: unknown): PersistedChatSettings {
   }
   if (handoffThreshold !== undefined) {
     settings.handoffThreshold = handoffThreshold;
+  }
+  if (deduplicateToolCalls !== undefined) {
+    settings.deduplicateToolCalls = deduplicateToolCalls;
   }
   if (maxToolCallsPerMessage !== undefined) {
     settings.maxToolCallsPerMessage = maxToolCallsPerMessage;
@@ -450,6 +454,7 @@ export function isEmptyChatSettings(settings: PersistedChatSettings): boolean {
     settings.compactionMode === undefined &&
     settings.handoffInstructions === undefined &&
     settings.handoffThreshold === undefined &&
+    settings.deduplicateToolCalls === undefined &&
     settings.maxToolCallsPerMessage === undefined &&
     settings.toolCallTimeout === undefined &&
     hasNoMirroredSettings(settings)

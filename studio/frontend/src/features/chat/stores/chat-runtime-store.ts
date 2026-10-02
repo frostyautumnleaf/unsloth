@@ -2408,6 +2408,7 @@ type ChatRuntimeStore = {
   compactionMode: CompactionMode;
   handoffInstructions: string;
   handoffThreshold: number;
+  deduplicateToolCalls: boolean;
   maxToolCallsPerMessage: number;
   toolCallTimeout: number;
   kvCacheDtype: string | null;
@@ -2704,6 +2705,7 @@ type ChatRuntimeStore = {
   setCompactionMode: (mode: CompactionMode) => void;
   setHandoffInstructions: (instructions: string) => void;
   setHandoffThreshold: (threshold: number) => void;
+  setDeduplicateToolCalls: (enabled: boolean) => void;
   setMaxToolCallsPerMessage: (value: number) => void;
   setToolCallTimeout: (value: number) => void;
   setGpuMemoryMode: (mode: "auto" | "manual") => void;
@@ -2751,6 +2753,7 @@ type ScalarSettingKey =
   | "compactionMode"
   | "handoffInstructions"
   | "handoffThreshold"
+  | "deduplicateToolCalls"
   | "maxToolCallsPerMessage"
   | "toolCallTimeout"
   | "reasoningEnabled"
@@ -2804,6 +2807,7 @@ const SCALAR_SETTING_KEYS = [
   "compactionMode",
   "handoffInstructions",
   "handoffThreshold",
+  "deduplicateToolCalls",
   "maxToolCallsPerMessage",
   "toolCallTimeout",
   "reasoningEnabled",
@@ -4200,6 +4204,7 @@ export const useChatRuntimeStore = create<ChatRuntimeStore>((set, get) => ({
   compactionMode: DEFAULT_COMPACTION_MODE,
   handoffInstructions: DEFAULT_HANDOFF_INSTRUCTIONS,
   handoffThreshold: DEFAULT_HANDOFF_THRESHOLD,
+  deduplicateToolCalls: true,
   maxToolCallsPerMessage: 25,
   toolCallTimeout: 5,
   kvCacheDtype: null,
@@ -5832,6 +5837,18 @@ export const useChatRuntimeStore = create<ChatRuntimeStore>((set, get) => ({
       );
       return {
         nudgeToolCalls,
+        queuedSettingsEpoch: state.queuedSettingsEpoch + 1,
+      };
+    }),
+  setDeduplicateToolCalls: (deduplicateToolCalls) =>
+    set((state) => {
+      setScalarSettingVersion(
+        "deduplicateToolCalls",
+        deduplicateToolCalls,
+        state.deduplicateToolCalls,
+      );
+      return {
+        deduplicateToolCalls,
         queuedSettingsEpoch: state.queuedSettingsEpoch + 1,
       };
     }),
