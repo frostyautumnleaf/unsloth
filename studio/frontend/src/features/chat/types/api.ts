@@ -809,5 +809,9 @@ export interface OpenAIChatChunk {
     // The prompt's share of the window (context_length minus the reply reserve), which is what one turn
     // must fit inside. Not re-derived here: the formula lives in the fit.
     prompt_target?: number;
+    // What the model handed over, on a Handoff compaction. Sent only when the note is what the reset
+    // actually carried, so its absence means the ordinary block did; the notice keeps its dropdown
+    // shut rather than opening onto nothing.
+    handoff_note?: string;
   };
 }

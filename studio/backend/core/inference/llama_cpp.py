@@ -39158,6 +39158,13 @@ class LlamaCppBackend:
                                         # starve a read the request had space for.
                                         _iteration_max_tokens,
                                         _spent + _pending_args,
+                                        # Every round of this loop is fitted when overflow
+                                        # truncation is on, so what a result pushes over is
+                                        # reclaimed rather than lost, and the reply room it is
+                                        # charged for is the room compaction frees. Off (the
+                                        # user refused the archive) keeps the old, stricter
+                                        # pricing: nothing behind it evicts anything.
+                                        compaction_enabled = context_overflow == "truncate_oldest",
                                     ) // (len(_pending) + 1)
                                     # A budget at or near zero means the call cannot deliver
                                     # anything: the result is cut to a notice saying it was
@@ -39213,6 +39220,7 @@ class LlamaCppBackend:
                                                     # rescuing.
                                                     _iteration_max_tokens,
                                                     _spent_after + _pending_args,
+                                                    compaction_enabled = context_overflow == "truncate_oldest",
                                                 ) // (len(_pending) + 1)
                                                 logger.info(
                                                     "Result budget for %s was %d; compacted "
