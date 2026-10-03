@@ -4259,3 +4259,56 @@ def test_a_note_changes_nothing_when_the_prompt_fits():
 
     assert truncation is None
     assert fitted == messages
+
+
+def test_the_handoff_threshold_holds_the_default_reset_off_until_it_is_reached():
+    """Handoff replaces the default compaction, so its threshold is where the window is rewritten.
+
+    Left to the formula the reset stops at `context_length - min(max_tokens, context_length // 4)`:
+    at the default 0.9 that is 75% of the window, so a chat at 80% was already compacted the ordinary
+    way, and each reset pulled the usage back under the fraction the note gate reads -- the point was
+    never reached and the setting moved a number nothing consulted. With the threshold sent the same
+    thread is left whole until it crosses 90%, and the reset that happens there is the handoff one.
+    """
+    context_length = 32768
+    messages = [{"role": "system", "content": "you are helpful"}]
+    for index in range(30):
+        messages += [
+            {"role": "user", "content": f"Step {index}. " + "x" * 3600},
+            {"role": "assistant", "content": f"Step {index} done."},
+        ]
+    spent = count(messages)
+    # Between the formula's own point (24,576) and the default handoff point (29,491).
+    assert 24576 < spent < 29491, spent
+
+    _, without_threshold = _fit(messages, context_length = context_length, max_tokens = None)
+    assert without_threshold is not None and without_threshold["dropped_messages"] > 0
+
+    held, with_threshold = _fit(
+        messages,
+        context_length = context_length,
+        max_tokens = None,
+        handoff_threshold = 0.9,
+    )
+    assert with_threshold is None, "handoff asked for 90% and the default reset fired earlier"
+    assert held == messages
+
+
+def test_a_handoff_threshold_past_admission_is_clamped_to_what_a_reply_can_still_fit():
+    """0.95 is the ceiling, and even that is clamped: a prompt at 95% of the window leaves a reply
+    too small to be worth generating, so the fit stops at the same floor admission itself uses."""
+    context_length = 32768
+    messages = [{"role": "system", "content": "you are helpful"}]
+    for index in range(30):
+        messages += [
+            {"role": "user", "content": f"Step {index}. " + "x" * 3600},
+            {"role": "assistant", "content": f"Step {index} done."},
+        ]
+    fitted, truncation = _fit(
+        messages,
+        context_length = context_length,
+        max_tokens = None,
+        handoff_threshold = 1.0,
+    )
+    assert truncation is None, "a threshold above the admission floor must not trim past it"
+    assert fitted == messages

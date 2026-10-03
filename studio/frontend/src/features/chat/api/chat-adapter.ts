@@ -6652,6 +6652,10 @@ export function createOpenAIStreamAdapter(
                 ...ggufCompactionRequestFields({
                   isGguf: isGgufForCompaction,
                   compactionMode: runtime.compactionMode,
+                  // The note request summarises the history the real turn is about to send, so it has
+                  // to be trimmed at the same point that turn is — otherwise it writes its note over a
+                  // shorter conversation than the chat still has.
+                  handoffThreshold: runtime.handoffThreshold,
                 }),
               },
               abortSignal: runSignal,
@@ -6677,6 +6681,10 @@ export function createOpenAIStreamAdapter(
             ...ggufCompactionRequestFields({
               isGguf: isGgufForCompaction,
               compactionMode: runtime.compactionMode,
+              // The threshold travels whether or not a note came back: it is what moves the server's
+              // reset off its own formula, and the first turn that needs a reset is usually the turn
+              // no note was asked for.
+              handoffThreshold: runtime.handoffThreshold,
             }),
             // The note this turn asked for, if any. Absent means the server carries its own
             // deterministic block, which is what every pre-handoff request did.

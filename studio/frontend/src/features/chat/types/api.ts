@@ -713,6 +713,10 @@ export interface OpenAIChatCompletionsRequest {
   compaction_headroom_ratio?: number;
   /** Model-written handoff note. A checkpoint reset carries it in place of its own block; rolling ignores it. */
   handoffNote?: string;
+  /** The fraction of the window a Handoff run rewrites it at, which is where the reset then happens.
+   *  Sent with the note or without it: the point has to move before a note exists, or the default
+   *  compaction fires first at its own formula and handoff is never reached. */
+  handoffThreshold?: number;
   max_tool_calls_per_message?: number;
   tool_call_timeout?: number;
   session_id?: string;

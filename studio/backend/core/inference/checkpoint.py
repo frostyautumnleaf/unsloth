@@ -33,9 +33,9 @@ from collections.abc import Callable
 from typing import Any, Optional
 
 from core.inference.context_window import (
+    compaction_prompt_target,
     estimate_message_tokens,
     group_turns,
-    prompt_budget,
     truncate_oldest_messages,
 )
 from core.inference.instruction_pin import is_substantive
@@ -527,6 +527,10 @@ def fit_checkpoint_context(
     # The Handoff mode's note, written by the model on the turn the window crossed its threshold. It goes IN PLACE OF
     # the carried-forward block, not beside it: the note is the record of the dropped turns.
     handoff_note: Optional[str] = None,
+    # ... and the threshold that turn crossed, which moves the reset to THAT point rather than to the reply
+    # reservation. Handoff replaces the default compaction, so the point is the user's, not the formula's;
+    # see `compaction_prompt_target`.
+    handoff_threshold: Optional[float] = None,
 ) -> tuple[list[dict], Optional[dict[str, Any]]]:
     """Fit a chat by resetting the epoch, keeping the newest turn and a carried-forward X.
 
@@ -546,7 +550,7 @@ def fit_checkpoint_context(
     if context_length <= 1:
         return messages, None
 
-    prompt_target = prompt_budget(context_length, max_tokens)
+    prompt_target = compaction_prompt_target(context_length, max_tokens, handoff_threshold)
     initial_tokens = count_tokens(list(messages))
     if initial_tokens <= prompt_target and sticky_dropped <= 0:
         return messages, None

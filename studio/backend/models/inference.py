@@ -2649,6 +2649,16 @@ class ChatCompletionRequest(BaseModel):
             "deterministic carried_forward block. Ignored by rolling compaction."
         ),
     )
+    handoffThreshold: Optional[float] = Field(
+        None,
+        description = (
+            "[x-unsloth] Fraction of the context window at which a Handoff compaction "
+            "rewrites the conversation. While it is set, the reset happens at that "
+            "fraction instead of at the reply reservation, so the default compaction does "
+            "not run before the handoff point. Unset keeps the formula's own point. "
+            "Send with the note or without it: the point has to move before a note exists."
+        ),
+    )
     studio_tool_history: Optional[bool] = Field(
         None,
         description = (
