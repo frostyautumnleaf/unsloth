@@ -369,12 +369,33 @@ def tool_result_budget(
     prompt_tokens: int,
     *,
     buffer: float = _TOOL_RESULT_BUDGET_BUFFER,
+    compaction_enabled: bool = False,
 ) -> int:
     """Tokens a tool result may add without pushing the next prompt over. Priced against room
     remaining, not a share of the window, and against ``prompt_budget`` so the reply still has
-    room. Covers the whole tool message, notice included."""
+    room. Covers the whole tool message, notice included.
+
+    ``compaction_enabled`` says a fit runs BEHIND this call and reclaims older turns once the
+    request goes over, which changes what "room" means. `prompt_budget` holds back up to a quarter
+    of the window for the reply, and compaction is the thing that frees it again, so charging a
+    result for that reservation asks it to pay for space that is about to be made. Measured on a
+    32,768-token window: the budget reaches zero at 24,320 tokens, so from 74% of the window on
+    every answer came back as `(output omitted: N chars, no context room left)` with a quarter of
+    the window standing empty, and long before the compaction the user configured (90% by default)
+    had any chance to run. Compaction then reads as the feature that ate their tool output.
+
+    With it on, the ceiling is what the next prompt can still be ADMITTED at: the window less a
+    survivable reply and the notice. That is `_reply_floor`, the same rule `turn_is_servable`
+    prices a turn with, so sizing and admission agree instead of each guessing.
+    """
+    spent = int(prompt_tokens or 0)
     target = prompt_budget(context_length, max_tokens)
-    return max(0, int(target * buffer) - int(prompt_tokens or 0))
+    if compaction_enabled and context_length > 1:
+        admitted = context_length - _reply_floor(context_length) - _RESULT_NOTICE_RESERVE
+        # max(), never a replacement: a small `max_tokens` makes `prompt_budget` exceed the
+        # admitted figure, and a caller that asked for that reservation still means it.
+        target = max(target, admitted)
+    return max(0, int(target * buffer) - spent)
 
 
 def turn_is_servable(

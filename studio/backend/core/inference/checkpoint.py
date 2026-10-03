@@ -553,8 +553,16 @@ def fit_checkpoint_context(
 
     budget = min(MAX_TOKENS, max(0, int(prompt_target * MAX_FRACTION)))
 
+    # The note this reset ACTUALLY carried, which is not the same as `handoff_note` arriving: below,
+    # a note too big for the budget falls through to the deterministic carry. Only the text that went
+    # in is worth showing a user, and only that one, or the notice credits the model with a summary
+    # the request never sent.
+    carried_note = ""
+
     def _project(kept: list[dict]) -> tuple[list[dict], str]:
         """`kept` plus the carried-forward block built from everything it dropped."""
+        nonlocal carried_note
+        carried_note = ""
         note = (handoff_note or "").strip()
         if note:
             # Priced on the same budget as the deterministic block, and dropped WHOLE when it does not fit,
@@ -562,6 +570,7 @@ def fit_checkpoint_context(
             # through instead of refusing keeps the carry this reset would otherwise have had.
             block = render_handoff(note, searchable = _resolved(searchable))
             if block and estimate_message({"role": "system", "content": block}) <= budget:
+                carried_note = note
                 return _append_to_system(kept, block), block
         alive = {id(message) for message in kept}
         evicted = [message for message in messages if id(message) not in alive]
@@ -655,6 +664,9 @@ def fit_checkpoint_context(
         if block:
             projected = _without_block(fitted)
             block = ""
+            # The note went with the block. Reporting it now would show a user a summary that was
+            # thrown away to make the turn fit, which is the one thing this field must never do.
+            carried_note = ""
             current_tokens = count_tokens(projected)
             measured = projected
     if current_tokens > prompt_target:
@@ -684,4 +696,9 @@ def fit_checkpoint_context(
         "checkpoint": True,
         "checkpoint_started": is_new_epoch,
         "carried_forward_chars": len(block),
+        # The Handoff mode's note, so the user can read what the model passed on instead of wondering
+        # what survived. It rides the same event as the rest of the fit and is stored with the turn, so
+        # it survives a reload like the notice does. Omitted, not empty, when the reset carried the
+        # deterministic block: an empty string here would render an empty section to open.
+        **({"handoff_note": carried_note} if carried_note else {}),
     }

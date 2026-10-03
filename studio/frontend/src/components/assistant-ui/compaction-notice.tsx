@@ -29,6 +29,9 @@ export const CompactionNotice: FC<{ truncation: ContextTruncation }> = ({
   const dropped = truncation.dropped_messages;
   const archived = truncation.archived_messages ?? 0;
   const recalled = truncation.recalled_chunks ?? 0;
+  // The Handoff mode's note. Trimmed because a note of only whitespace was never worth a section,
+  // and the server sends the field only when a note was carried.
+  const handoffNote = truncation.handoff_note?.trim() ?? "";
 
   const detail = archived
     ? "They are saved and searchable, and the parts relevant to each question are brought back automatically."
@@ -58,6 +61,24 @@ export const CompactionNotice: FC<{ truncation: ContextTruncation }> = ({
             : ""}
           .)
         </span>
+        {handoffNote ? (
+          // Collapsed by default: the note is the dropped turns' replacement in the MODEL's context,
+          // and most readers of a compacted chat want to know it happened, not to re-read the whole
+          // conversation summarised at them. A native <details> keeps it shut with no state to
+          // restore and no JS, so it is shut on a reload too.
+          <details
+            className="mt-2"
+            data-testid="compaction-notice-handoff"
+            data-handoff-chars={handoffNote.length}
+          >
+            <summary className="w-fit cursor-pointer select-none text-ui-12 font-medium text-foreground/70 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground/40">
+              What the model handed over
+            </summary>
+            <div className="mt-1.5 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border/50 bg-background/60 px-2.5 py-2 text-ui-12">
+              {handoffNote}
+            </div>
+          </details>
+        ) : null}
       </div>
     </div>
   );

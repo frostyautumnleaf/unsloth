@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright 2026-present the Unsloth AI Inc. team. All rights reserved. See /studio/LICENSE.AGPL-3.0
 
+// eslint-disable-next-line no-restricted-imports -- The picker barrel imports chat; this payload helper is import-free.
+import { llamaCppConfigPayload } from "@/features/model-picker/model-config/llama-cpp-config";
 import { attachedMediaUnavailableReason } from "../lib/attached-media-gate";
 import { externalModelLabel } from "../lib/external-model-label";
 import { mlxRuntimeStateFrom } from "../lib/mlx-runtime-state";
@@ -226,9 +228,11 @@ import {
   type PendingImageEditReference,
   type RagAutoInject,
   GPU_LAYERS_AUTO,
-  loadedGpuMemoryFields,
+  managedGpuMemoryFields,
   reconcilePersistedGpuIds,
-  resolveLoadedSpeculativeSettings,
+  loadedLlamaCppConfigFields,
+  managedKvCacheFields,
+  managedSpeculativeSettings,
   resolveSpeculativeSettingsForLoad,
   persistGpuMemoryModeOnLoad,
   resolvePreserveThinkingOnLoad,
@@ -3504,6 +3508,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
               // it disagrees with the launch.
               ...serverTuningLoadPayload(config),
               // Checked with the same arguments the load sends, or a list the backend refuses would pass this gate.
+              ...llamaCppConfigPayload(config.llamaCppConfig, { isDiffusion }),
               ...(resolvedExtraArgs !== undefined
                 ? { llama_extra_args: resolvedExtraArgs ?? [] }
                 : {}),
@@ -3568,6 +3573,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
             ...serverTuningLoadPayload(config),
             // Remembered pass-through args: nothing is resident at startup to inherit them from.
             // Undefined predates the field; a cleared list is an explicit none.
+            ...llamaCppConfigPayload(config.llamaCppConfig, { isDiffusion }),
             ...(resolvedExtraArgs !== undefined
               ? { llama_extra_args: resolvedExtraArgs ?? [] }
               : {}),
@@ -3663,8 +3669,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           preserveThinking: resolvePreserveThinkingOnLoad(loadResp),
           supportsTools: loadResp.supports_tools ?? false,
           ...resolveToolsEnabledOnLoad(loadResp.supports_tools ?? false),
-          kvCacheDtype: loadResp.cache_type_kv ?? null,
-          loadedKvCacheDtype: loadResp.cache_type_kv ?? null,
+          ...managedKvCacheFields(loadResp),
           ...mlxRuntimeStateFrom(loadResp),
           // Click-time value, not the resolved backend echo (see performLoad).
           nParallel: committedSlots,
@@ -3700,6 +3705,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           ...committedServerTuningState(config, loadResp.is_diffusion ?? false),
           // What this launch is running, for a later rollback: the status applier cannot seed it while
           // the model-loading lease is held, and a failed switch would restore the wrong args.
+          ...loadedLlamaCppConfigFields(loadResp, config.llamaCppConfig),
           loadedLlamaExtraArgs:
             loadResp.requested_llama_extra_args !== undefined
               ? (loadResp.requested_llama_extra_args ?? [])
@@ -3711,7 +3717,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           // loaded projector, and the next Apply would send it.
           disableVision: loadResp.disable_vision ?? false,
           loadedVisionDisabledByUser: loadResp.vision_disabled_by_user ?? false,
-          ...loadedGpuMemoryFields(loadResp),
+          ...managedGpuMemoryFields(loadResp),
           loadedCustomContextLength: keepCustomCtx,
           defaultChatTemplate: loadResp.chat_template ?? null,
           chatTemplateOverride: effectiveChatTemplateOverride,
@@ -3722,7 +3728,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           mmprojFallbackReason: loadResp.mmproj_fallback_reason ?? null,
           loadedIsDiffusion: loadResp.is_diffusion ?? false,
           activeModelIsLocal: loadResp.is_local_model ?? false,
-          ...resolveLoadedSpeculativeSettings(loadResp),
+          ...managedSpeculativeSettings(loadResp),
         });
       } else {
         useChatRuntimeStore.setState({
@@ -3735,8 +3741,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           preserveThinking: resolvePreserveThinkingOnLoad(loadResp),
           supportsTools: loadResp.supports_tools ?? false,
           ...resolveToolsEnabledOnLoad(loadResp.supports_tools ?? false),
-          kvCacheDtype: loadResp.cache_type_kv ?? null,
-          loadedKvCacheDtype: loadResp.cache_type_kv ?? null,
+          ...managedKvCacheFields(loadResp),
           ...mlxRuntimeStateFrom(loadResp),
           nParallel: committedSlots,
           loadedNParallel: committedSlots,
@@ -3754,6 +3759,9 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           // Same reason, and the baseline must clear so a rollback to THIS model does not resend a
           // GGUF's arguments.
           loadedLlamaExtraArgs: null,
+          llamaCppConfig: undefined,
+          loadedLlamaCppConfig: null,
+          llamaCppConfigSummary: null,
           tensorParallel: loadResp.tensor_parallel ?? false,
           loadedTensorParallel: loadResp.tensor_parallel ?? false,
           loadedDisableVision: loadResp.disable_vision ?? false,
@@ -3763,7 +3771,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           loadedVisionDisabledByUser:
             loadResp.vision_disabled_by_user ?? false,
           // Non-GGUF response: clears any stale GPU baseline a prior manual-GPU GGUF load left.
-          ...loadedGpuMemoryFields(loadResp),
+          ...managedGpuMemoryFields(loadResp),
           defaultChatTemplate: loadResp.chat_template ?? null,
           chatTemplateOverride: effectiveChatTemplateOverride,
           loadedChatTemplateOverride: effectiveChatTemplateOverride,
@@ -3775,7 +3783,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           ...loadedContextFields(loadResp),
           activeNativePathToken: null,
           activeNativePathExpiresAtMs: null,
-          ...resolveLoadedSpeculativeSettings(loadResp),
+          ...managedSpeculativeSettings(loadResp),
           loadedIsMultimodal: isMultimodalResponse(loadResp),
           mmprojFallbackReason: loadResp.mmproj_fallback_reason ?? null,
           loadedIsDiffusion: loadResp.is_diffusion ?? false,
@@ -4078,8 +4086,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           preserveThinking: resolvePreserveThinkingOnLoad(loadResp),
           supportsTools: loadResp.supports_tools ?? false,
           ...resolveToolsEnabledOnLoad(loadResp.supports_tools ?? false),
-          kvCacheDtype: loadResp.cache_type_kv ?? null,
-          loadedKvCacheDtype: loadResp.cache_type_kv ?? null,
+          ...managedKvCacheFields(loadResp),
           ...mlxRuntimeStateFrom(loadResp),
           // The request above omits n_parallel: a staged override would read as applied and be re-sent
           // by the next Apply.
@@ -4103,7 +4110,9 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           disableVision: loadResp.disable_vision ?? false,
           loadedVisionDisabledByUser:
             loadResp.vision_disabled_by_user ?? false,
-          ...loadedGpuMemoryFields(loadResp),
+          ...managedGpuMemoryFields(loadResp),
+          // The request omits llama_cpp_config, so a saved custom source may be what launched.
+          ...loadedLlamaCppConfigFields(loadResp, undefined),
           // Drives the GPU Memory controls' diffusion gate; set on every load path so the gate cannot read stale.
           loadedIsDiffusion: loadResp.is_diffusion ?? false,
           defaultChatTemplate: loadResp.chat_template ?? null,
@@ -4111,7 +4120,7 @@ async function autoLoadSmallestModel(options?: AutoLoadOptions): Promise<{
           loadedIsMultimodal: isMultimodalResponse(loadResp),
           mmprojFallbackReason: loadResp.mmproj_fallback_reason ?? null,
           activeModelIsLocal: loadResp.is_local_model ?? false,
-          ...resolveLoadedSpeculativeSettings(loadResp),
+          ...managedSpeculativeSettings(loadResp),
         });
         recordLastLocalModelLoad({
           id: DEFAULT_CHAT_MODEL_REPO,
