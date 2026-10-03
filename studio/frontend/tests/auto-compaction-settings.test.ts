@@ -23,11 +23,40 @@ test("off sends an explicit error overflow policy", () => {
   );
 });
 
-test("handoff asks for the same reset as auto", () => {
-  // The note changes what the reset CARRIES, not whether it happens, so these fields cannot tell the
-  // two modes apart -- and a handoff whose note never arrived still compacts like auto.
+test("handoff moves the reset to the point the user set", () => {
+  // Handoff REPLACES the default compaction rather than decorating it, so it has to own when the
+  // window is rewritten, not only what survives. Without the threshold the server resets at its own
+  // reservation for the reply (75% of the window at the default 90% setting), so the conversation is
+  // compacted the default way long before the handoff point and never reaches it.
+  assert.deepEqual(
+    ggufCompactionRequestFields({
+      isGguf: true,
+      compactionMode: "handoff",
+      handoffThreshold: 0.9,
+    }),
+    { context_overflow: "truncate_oldest", handoffThreshold: 0.9 },
+  );
+});
+
+test("handoff with no threshold named keeps the server's own point", () => {
+  // An older client, or a caller that has no window to measure: the field is omitted rather than
+  // guessed, because a guessed fraction silently moves a reset the user did not ask for.
   assert.deepEqual(
     ggufCompactionRequestFields({ isGguf: true, compactionMode: "handoff" }),
+    { context_overflow: "truncate_oldest" },
+  );
+});
+
+test("archive does not borrow the handoff threshold", () => {
+  // The threshold belongs to handoff. Sent with archive it would move the default compaction off its
+  // own formula for a mode whose note is never asked for, which is a chat that stops compacting early
+  // and refuses instead.
+  assert.deepEqual(
+    ggufCompactionRequestFields({
+      isGguf: true,
+      compactionMode: "auto",
+      handoffThreshold: 0.9,
+    }),
     { context_overflow: "truncate_oldest" },
   );
 });

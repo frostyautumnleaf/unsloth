@@ -990,6 +990,19 @@ def _request_compaction_headroom_ratio(payload) -> Optional[float]:
     return clamp_compaction_headroom_ratio(getattr(payload, "compaction_headroom_ratio", None))
 
 
+def _request_handoff_threshold(payload) -> Optional[float]:
+    """The fraction of the window a Handoff run rewrites it at, or None.
+
+    The note alone cannot move the compaction: the turn that first needs a reset is normally the turn
+    no note has been asked for yet, because the client asks at the same fraction and reads the usage
+    the PREVIOUS turn left. So the point travels on every handoff request, note present or not --
+    otherwise the default compaction fires first at its own formula and the handoff is never reached.
+    """
+    from core.inference.context_window import clamp_handoff_threshold
+
+    return clamp_handoff_threshold(getattr(payload, "handoffThreshold", None))
+
+
 def _request_handoff_note(payload) -> Optional[str]:
     """The model-written handoff note, camelCase because the client names it. Trimmed here so a
     whitespace-only note reads as absent and the reset keeps its deterministic carry."""
@@ -28575,6 +28588,7 @@ async def produce_openai_chat_completions(
                     context_policy = _request_context_policy(payload),
                     compaction_headroom_ratio = _request_compaction_headroom_ratio(payload),
                     handoff_note = _request_handoff_note(payload),
+                    handoff_threshold = _request_handoff_threshold(payload),
                 )
 
             _tool_admission_mode = "chat_tool_stream" if payload.stream else "chat_tool_nonstream"
@@ -29399,6 +29413,7 @@ async def produce_openai_chat_completions(
                 context_policy = _request_context_policy(payload),
                 compaction_headroom_ratio = _request_compaction_headroom_ratio(payload),
                 handoff_note = _request_handoff_note(payload),
+                handoff_threshold = _request_handoff_threshold(payload),
                 thread_id = payload.thread_id,
                 # These requests suppress the tool loop AND are excluded from the checkpoint
                 # repair above, so search_conversation is offered neither now nor on the

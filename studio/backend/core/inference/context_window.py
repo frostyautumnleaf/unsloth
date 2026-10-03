@@ -332,6 +332,53 @@ def prompt_budget(context_length: int, max_tokens: Optional[int]) -> int:
     return context_length - min(requested, max(1, context_length // 4))
 
 
+# The Handoff mode's ceiling, mirroring the settings UI: a request cannot ask the fit for a point past it.
+_HANDOFF_THRESHOLD_MAX = 0.95
+
+
+def clamp_handoff_threshold(value: Any) -> Optional[float]:
+    """The fraction of the window a Handoff run rewrites it at, or None when it named none.
+
+    Zero is None rather than a threshold: a caller that sends `0` means "no handoff", and one that
+    means 50% sends 0.5. NaN and junk answer None so an unset field keeps the process defaults.
+    """
+    if value is None:
+        return None
+    try:
+        fraction = float(value)
+    except (TypeError, ValueError):
+        return None
+    if fraction != fraction or fraction <= 0.0:
+        return None
+    return min(fraction, _HANDOFF_THRESHOLD_MAX)
+
+
+def compaction_prompt_target(
+    context_length: int,
+    max_tokens: Optional[int],
+    handoff_threshold: Optional[float] = None,
+) -> int:
+    """Where a fit stops trimming: ``prompt_budget``, unless this run asked for Handoff.
+
+    Handoff replaces the default compaction, and the user named the point of the rewrite. Left to
+    `prompt_budget`, the fit stops at `context_length - min(max_tokens, context_length // 4)` instead:
+    at the default 90% setting and no explicit reply cap, that is 75% of the window, so the server had
+    been compacting for a quarter of the window before the handoff point, and the conversation could
+    never reach it -- every reset pulled the prompt back under the threshold, so the handoff gate, which
+    reads the same window, never fired either. The setting did not move the compaction; it moved a
+    number nobody consulted. This is the seam that moves the compaction.
+
+    Clamped to what admission allows: a prompt this large still has to leave a reply worth generating,
+    which is the floor `turn_is_servable` and the tool-result sizing already price a turn with.
+    """
+    target = prompt_budget(context_length, max_tokens)
+    fraction = clamp_handoff_threshold(handoff_threshold)
+    if fraction is None or context_length <= 1:
+        return target
+    admitted = context_length - _reply_floor(context_length)
+    return max(1, min(int(context_length * fraction), admitted))
+
+
 _RETRIEVAL_BUDGET_SHARE = 0.5
 
 # Small on purpose: missing the reserve is survivable, so this only rules out the stub-answer end.
@@ -946,6 +993,7 @@ def fit_rolling_context(
     sticky_dropped: int = 0,
     keeps_boundary: bool = False,
     headroom_ratio: Optional[float] = None,
+    handoff_threshold: Optional[float] = None,
     estimate_message: Callable[[dict], int] = estimate_message_tokens,
 ) -> tuple[list[dict], Optional[dict[str, Any]]]:
     """Fit a chat into its context by dropping oldest complete turns; the current turn is never
@@ -959,7 +1007,7 @@ def fit_rolling_context(
     if context_length <= 1:
         return messages, None
 
-    prompt_target = prompt_budget(context_length, max_tokens)
+    prompt_target = compaction_prompt_target(context_length, max_tokens, handoff_threshold)
     fitted = list(messages)
     initial_tokens = count_tokens(fitted)
     current_tokens = initial_tokens

@@ -66,6 +66,7 @@ from core.inference.llama_custom_config import (
 from core.inference.context_window import (
     _COMPACTION_HEADROOM_RATIO,
     clamp_compaction_headroom_ratio,
+    compaction_prompt_target,
     prompt_budget,
     compact_completed_tool_arguments,
     compact_executed_call_arguments,
@@ -253,6 +254,7 @@ def _compaction_fit_kwargs(
     context_policy: Optional[str] = None,
     compaction_headroom_ratio: Optional[float] = None,
     handoff_note: Optional[str] = None,
+    handoff_threshold: Optional[float] = None,
 ) -> dict:
     """Per-request overrides the four rolling-fit call sites share.
 
@@ -260,7 +262,9 @@ def _compaction_fit_kwargs(
     ROLLING_COMPACTION_HEADROOM_RATIO) so an older client is unaffected.
 
     `handoff_note` reaches only the checkpoint fit: `_fit_context` pops it before the rolling
-    fallback, which has no use for it and would take it as an unknown argument.
+    fallback, which has no use for it and would take it as an unknown argument. `handoff_threshold`
+    is the exception -- both fits take it, because the point it names is where EITHER of them would
+    otherwise have compacted the default way, and Handoff replaces that.
     """
     extra: dict = {}
     if context_policy in ("checkpoint", "rolling"):
@@ -269,6 +273,8 @@ def _compaction_fit_kwargs(
         extra["headroom_ratio"] = compaction_headroom_ratio
     if handoff_note:
         extra["handoff_note"] = handoff_note
+    if handoff_threshold:
+        extra["handoff_threshold"] = handoff_threshold
     return extra
 
 
@@ -411,8 +417,10 @@ def _fit_with_instruction_pins(
         from core.inference import instruction_pin
         pins = instruction_pin.pinned_instruction_ids(
             messages,
-            prompt_target = prompt_budget(
-                kwargs.get("context_length") or 0, kwargs.get("max_tokens") or 0
+            prompt_target = compaction_prompt_target(
+                kwargs.get("context_length") or 0,
+                kwargs.get("max_tokens") or 0,
+                kwargs.get("handoff_threshold"),
             ),
         )
     except Exception:  # noqa: BLE001 -- a protection heuristic must never break a chat
@@ -440,7 +448,11 @@ def _fit_with_instruction_pins(
             tokens = kwargs["count_tokens"](fitted)
         except Exception:  # noqa: BLE001 -- an unpriced note is dropped, never a failed chat
             tokens = None
-        target = prompt_budget(kwargs.get("context_length") or 0, kwargs.get("max_tokens") or 0)
+        target = compaction_prompt_target(
+            kwargs.get("context_length") or 0,
+            kwargs.get("max_tokens") or 0,
+            kwargs.get("handoff_threshold"),
+        )
         if tokens is None or tokens > target:
             message["content"] = before
         else:
@@ -35887,6 +35899,10 @@ class LlamaCppBackend:
         # Appended, never inserted: a model-written note the checkpoint reset carries in place of its
         # own block. Absent means the ordinary deterministic carry.
         handoff_note: Optional[str] = None,
+        # ... and the fraction of the window the user set Handoff to rewrite at, which moves the reset
+        # itself there. Sent with the note or without it: the point has to move before a note exists,
+        # or the default compaction keeps running first and the handoff is never reached.
+        handoff_threshold: Optional[float] = None,
     ) -> Generator[Union[str, dict], None, None]:
         """
         Send a chat completion to llama-server and stream tokens back.
@@ -35995,7 +36011,9 @@ class LlamaCppBackend:
                     keeps_boundary = _keeps_compaction_boundary(thread_id),
                     can_reset = _can_reset,
                     recall_offered = False,
-                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
+                    **_compaction_fit_kwargs(
+                        context_policy, compaction_headroom_ratio, handoff_note, handoff_threshold
+                    ),
                 )
                 if truncation:
                     # Inline, not a forged tool exchange: this path sends no tools array,
@@ -36332,6 +36350,8 @@ class LlamaCppBackend:
         mcp_image = None,
         # See `generate_chat_completion`: the note belongs to the checkpoint fit alone.
         handoff_note: Optional[str] = None,
+        # See `generate_chat_completion`: this one belongs to both fits.
+        handoff_threshold: Optional[float] = None,
     ) -> Generator[dict, None, None]:
         """
         Agentic loop: let the model call tools, execute them, and continue.
@@ -36973,7 +36993,9 @@ class LlamaCppBackend:
                         reserve_tokens = _conversation_recall_reserve(thread_id),
                         sticky_dropped = _iteration_sticky,
                         sticky_is_checkpoint = _iteration_sticky_is_checkpoint,
-                        **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
+                        **_compaction_fit_kwargs(
+                            context_policy, compaction_headroom_ratio, handoff_note, handoff_threshold
+                        ),
                     )
                     # Accounted for in this request now, whatever the fit decided.
                     _sticky_boundary_applied = True
@@ -37157,7 +37179,9 @@ class LlamaCppBackend:
                             tools_withheld = _memory_tool_withheld(thread_id, tools),
                         ),
                         recall_offered = "search_conversation" in (_enabled_tool_names or ()),
-                        **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
+                        **_compaction_fit_kwargs(
+                            context_policy, compaction_headroom_ratio, handoff_note, handoff_threshold
+                        ),
                     )
                     # Recorded here, not left to the forwarding below. That list is
                     # drained from INSIDE the reopened stream, so a replacement server
@@ -39713,7 +39737,9 @@ class LlamaCppBackend:
                     reserve_tokens = _conversation_recall_reserve(thread_id),
                     sticky_dropped = _final_sticky,
                     sticky_is_checkpoint = _final_sticky_is_checkpoint,
-                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
+                    **_compaction_fit_kwargs(
+                        context_policy, compaction_headroom_ratio, handoff_note, handoff_threshold
+                    ),
                 )
                 _sticky_boundary_applied = True
                 if truncation:
@@ -39877,7 +39903,9 @@ class LlamaCppBackend:
                         # The final pass again, so again no tools array is sent.
                         tools_withheld = True,
                     ),
-                    **_compaction_fit_kwargs(context_policy, compaction_headroom_ratio, handoff_note),
+                    **_compaction_fit_kwargs(
+                        context_policy, compaction_headroom_ratio, handoff_note, handoff_threshold
+                    ),
                 )
                 if truncation:
                     # Archive only; see the iteration respawn refit above.
