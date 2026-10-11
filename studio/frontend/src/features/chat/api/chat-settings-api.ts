@@ -11,7 +11,10 @@ import type {
   RagSource,
   ReasoningEffort,
 } from "../stores/chat-runtime-store";
-import type { ResearchWebsitePolicy } from "../types/research";
+import type {
+  ResearchMcpSource,
+  ResearchWebsitePolicy,
+} from "../types/research";
 import type {
   InferenceParams,
   PersistedInferenceParams,
@@ -56,6 +59,7 @@ export interface PersistedChatSettings {
   webFetchToolsEnabled?: boolean;
   deepResearchEnabled?: boolean;
   researchWebsitePolicy?: ResearchWebsitePolicy;
+  researchMcpSources?: ResearchMcpSource[];
   researchModelTimeoutSeconds?: number;
   mcpEnabledForChat?: boolean;
   confirmToolCalls?: boolean;
