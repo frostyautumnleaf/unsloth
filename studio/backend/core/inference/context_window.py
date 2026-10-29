@@ -577,8 +577,16 @@ def _completed_phrase_for(name: str, reply: object = None) -> str:
     return _COMPLETED_PHRASE if _reply_proves_a_write(name, reply) else _COMPLETED_NEUTRAL_PHRASE
 
 
+# Disabled: tool-call argument compaction (the `<N chars of arguments you sent, elided to save
+# room; ...>` receipts) is kept in the code but never activates. Sent arguments are replayed in
+# full; a prompt that no longer fits the window goes to the normal context-overflow path.
+_TOOL_CALL_ARG_COMPACTION_DISABLED = True
+
+
 def compact_executed_call_arguments(messages: list[dict], call_id: str) -> list[dict]:
     """Compacts arguments of one just-run call even if protected; None, not the receipt: it is per tool."""
+    if _TOOL_CALL_ARG_COMPACTION_DISABLED:
+        return messages
     return _compact_one_call(messages, call_id, None)
 
 
@@ -586,6 +594,8 @@ def compact_refused_tool_arguments(messages: list[dict], call_id: str) -> list[d
     """Drop a declined call's arguments, named as never sent. `tool_calls` render only once a `tool`
     message answers them, and the refusal is one, so declining costs the prompt what it declined
     to afford."""
+    if _TOOL_CALL_ARG_COMPACTION_DISABLED:
+        return messages
     return _compact_one_call(messages, call_id, _REFUSED_PHRASE)
 
 
@@ -703,6 +713,8 @@ def compact_completed_tool_arguments(
     """Rewrite only what is REPLAYED; the stored thread and the arguments the tool received stay
     byte-identical. Only answered calls are touched, oldest first; ``protect_last`` holds
     trailing messages clear."""
+    if _TOOL_CALL_ARG_COMPACTION_DISABLED:
+        return messages, 0
     answered = _executed_call_sites(messages)
     if not answered:
         return messages, 0
