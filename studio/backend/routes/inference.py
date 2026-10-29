@@ -1673,6 +1673,7 @@ try:
         detect_dspark_file,
         detect_mtp_file,
         load_model_defaults,
+        shared_hub_model_info,
     )
     from utils.native_path_leases import (
         NativePathLeaseError,
@@ -1737,6 +1738,7 @@ except ImportError:
         detect_dspark_file,
         detect_mtp_file,
         load_model_defaults,
+        shared_hub_model_info,
     )
     from utils.native_path_leases import (
         NativePathLeaseError,
@@ -18668,6 +18670,12 @@ async def _load_model_impl(
                     account_access.join_resident("chat")
                 if request._advertised_id:
                     backend._openai_advertised_id = request._advertised_id
+                _requires_rc = await asyncio.to_thread(
+                    _resolve_loaded_trust_remote_code,
+                    backend.active_model_name,
+                    _model_info,
+                    inference_config,
+                )
                 return LoadResponse(
                     engine = request.engine,
                     engine_parallelism = request.engine_parallelism,
@@ -18708,9 +18716,7 @@ async def _load_model_impl(
                     chat_template_override = _model_info.get("chat_template_override_requested"),
                     chat_template_override_reason = _model_info.get("chat_template_override_reason"),
                     inference = inference_config,
-                    requires_trust_remote_code = _resolve_loaded_trust_remote_code(
-                        backend.active_model_name, _model_info, inference_config
-                    ),
+                    requires_trust_remote_code = _requires_rc,
                     supports_reasoning = _sf_supports_reasoning,
                     reasoning_style = _sf_reasoning_style,
                     reasoning_effort_levels = _sf_flags.get("reasoning_effort_levels", []),
@@ -18732,7 +18738,7 @@ async def _load_model_impl(
         # Offline guard skips soft-failed network checks before the worker starts; off-loop, as its DNS/HEAD can take seconds.
 
         def _resolve_config():
-            with _hf_offline_if_unreachable_for(model_identifier):
+            with _hf_offline_if_unreachable_for(model_identifier), shared_hub_model_info():
                 return ModelConfig.from_identifier(
                     model_id = model_identifier,
                     hf_token = request.hf_token,
@@ -19503,7 +19509,8 @@ async def _load_model_impl(
         _sf_flags, _ = _sf_rendered_features(backend, _model_info)
 
         # Persist trust_remote_code so a retry/rollback doesn't send false for a custom-code model.
-        _requires_rc = _resolve_loaded_trust_remote_code(
+        _requires_rc = await asyncio.to_thread(
+            _resolve_loaded_trust_remote_code,
             config.identifier,
             None,
             inference_config,
@@ -19887,7 +19894,7 @@ async def validate_model(
         _caller_is_owner = _owner_session(fastapi_request)
 
         def _resolve_config():
-            with _hf_offline_if_unreachable_for(model_identifier):
+            with _hf_offline_if_unreachable_for(model_identifier), shared_hub_model_info():
                 return ModelConfig.from_identifier(
                     model_id = model_identifier,
                     hf_token = request.hf_token,
@@ -48267,25 +48274,27 @@ async def _external_image_generation(
         created_at = time.time()
 
         def _persist() -> list[dict]:
-            return [
-                image_gallery.save(
-                    image,
-                    {
-                        "prompt": body.prompt,
-                        "width": image.width,
-                        "height": image.height,
-                        "steps": body.steps,
-                        "guidance": body.guidance,
-                        "seed": body.seed or 0,
-                        "batch_index": index,
-                        "batch_size": body.batch_size,
-                        "model": external_model,
-                        "model_kind": "connection",
-                        "created_at": created_at,
-                    },
+            return list(
+                image_gallery.save_many(
+                    (
+                        image,
+                        {
+                            "prompt": body.prompt,
+                            "width": image.width,
+                            "height": image.height,
+                            "steps": body.steps,
+                            "guidance": body.guidance,
+                            "seed": body.seed or 0,
+                            "batch_index": index,
+                            "batch_size": body.batch_size,
+                            "model": external_model,
+                            "model_kind": "connection",
+                            "created_at": created_at,
+                        },
+                    )
+                    for index, image in enumerate(images)
                 )
-                for index, image in enumerate(images)
-            ]
+            )
 
         try:
             records = await asyncio.to_thread(_persist)
@@ -48567,7 +48576,7 @@ async def _generate_diffusion_image_run(
     list_driven = bool(request.prompts or request.seeds)
 
     def _persist() -> list[dict]:
-        records = []
+        items = []
         for index, image in enumerate(result["images"]):
             seed = (
                 per_image_seeds[index]
@@ -48580,8 +48589,8 @@ async def _generate_diffusion_image_run(
                 if request.prompts and index < len(request.prompts)
                 else request.prompt
             )
-            records.append(
-                image_gallery.save(
+            items.append(
+                (
                     image,
                     {
                         "prompt": typed_prompt,
@@ -48681,7 +48690,7 @@ async def _generate_diffusion_image_run(
                     },
                 )
             )
-        return records
+        return list(image_gallery.save_many(items))
 
     # Hold generate-progress "active" across the persist so a reload mount probe cannot refresh the gallery before these records exist.
     _diffusion_persist_active += 1
@@ -50552,6 +50561,7 @@ async def _generate_openai_images(
 
     def _persist() -> list[ImageGenerationData]:
         items: list[ImageGenerationData] = []
+        saves = []
         for index, image in enumerate(result["images"]):
             seed = (
                 per_image_seeds[index]
@@ -50559,10 +50569,13 @@ async def _generate_openai_images(
                 else result["seed"]
             )
             # batch_seed is the base the native engine derives per-image seeds from, so restore does not double-advance.
-            record = image_gallery.save(
-                image,
-                {**recipe, "batch_index": index, "seed": seed, "batch_seed": result["seed"]},
+            saves.append(
+                (
+                    image,
+                    {**recipe, "batch_index": index, "seed": seed, "batch_seed": result["seed"]},
+                )
             )
+        for record in image_gallery.save_many(saves):
             if want_b64:
                 encoded = image_gallery.image_b64(record["id"])
                 if encoded is None:  # vanished between write and read — fail the call
