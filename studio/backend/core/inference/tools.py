@@ -63,6 +63,13 @@ _REQUEST_RESULT_BUDGET: ContextVar = ContextVar(
     default = None,
 )
 
+# Disabled: the room-limited tool result feature (the zero-room stub, the starved-result
+# notice and the window-priced cap) is kept in the code but never activates. With no room
+# priced, results fall back to the plain configured character cap (spill to file included),
+# and a result that no longer fits the window is handled by the normal context-overflow
+# path instead of being replaced by a stub.
+_TOOL_RESULT_ROOM_DISABLED = True
+
 import uuid
 import time
 import urllib.parse
@@ -13262,7 +13269,7 @@ def execute_tool(
     # Set unconditionally so a stale value from this thread is never read; no reset needed.
     _REQUEST_CONTEXT_TOKENS.set(context_tokens)
     # A stale budget predates this turn's tool results, undercounting so the last result overflows.
-    _REQUEST_RESULT_BUDGET.set(result_budget_tokens)
+    _REQUEST_RESULT_BUDGET.set(None if _TOOL_RESULT_ROOM_DISABLED else result_budget_tokens)
     # Answered here: the tool would blame the model for keys a truncated call never sent.
     # Imported locally to avoid an import cycle.
     from .tool_loop_controller import UNPARSED_ARGUMENTS_KEY  # noqa: PLC0415
@@ -15887,6 +15894,8 @@ def _page_char_budget() -> int:
 
 def _request_result_room() -> int | None:
     """None when the caller cannot price its prompt; external and hosted paths get the old caps."""
+    if _TOOL_RESULT_ROOM_DISABLED:
+        return None
     room = _REQUEST_RESULT_BUDGET.get()
     if room is None:
         return None
@@ -20043,6 +20052,32 @@ def _truncate(
     # Resolved per call: an import-time default freezes before any model loads.
     if limit is None:
         limit = _tool_result_char_budget()
+    if _TOOL_RESULT_ROOM_DISABLED:
+        # The room-limited cap is off: cut only at the configured character cap, with the
+        # plain notice and spill to file. A result that no longer fits the window goes to
+        # the normal context-overflow path instead of a zero-room stub.
+        if len(text) <= limit:
+            return text + hint
+        spill, complete = _spill_full_output(text, workdir, scope)
+        if spill is None:
+            return (
+                text[:limit]
+                + (
+                    f"\n\n... (truncated to {limit} chars for the model; {size} chars "
+                    "total. The full output is not retained here; any files the code wrote "
+                    "persist in the working directory.)"
+                )
+                + hint
+            )
+        return (
+            text[:limit]
+            + (
+                f"\n\n... (truncated to {limit} chars for the model; {size} chars "
+                f"total. {_capitalise(_spill_phrase(spill, complete))}, and any files the code "
+                "wrote persist in the working directory.)"
+            )
+            + hint
+        )
     # `omitted` is the (chars, lines) the drain dropped between its head and tail, so only the head may be shown.
     size = len(text) + omitted[0]
     if omitted[0]:
@@ -20139,6 +20174,9 @@ def _fit_result_to_room(text, name = None):
         lowered = _tool_result_max_chars() < tool_result_limit.DEFAULT_MAX_CHARS
         if not (lowered and isinstance(name, str) and name.startswith(MCP_TOOL_PREFIX)):
             return text
+    if _TOOL_RESULT_ROOM_DISABLED:
+        # The window-priced cap is off; nothing to fit against.
+        return text
     # Only the part the model will actually be shown is measured and cut. The rest is a frontend-only envelope (an MCP
     # image array, web_search thumbnails, RAG sources) which `strip_result_for_model` removes before the result is
     # replayed, so it costs the window nothing and must come back byte-identical: every consumer of the __MCP_IMAGES__

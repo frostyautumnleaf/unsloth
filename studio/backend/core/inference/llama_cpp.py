@@ -450,6 +450,7 @@ from core.inference.tool_call_parser import (
     thinking_exhausted_message as _thinking_exhausted_message,
     unfinished_thought_progress as _unfinished_thought_progress,
 )
+from core.inference.tools import _TOOL_RESULT_ROOM_DISABLED
 from core.inference.passthrough_healing import nudge_enabled as _nudge_enabled
 from core.inference.repetition_guard import is_repetition_dominated
 from core.inference.mcp_images import (
@@ -39575,8 +39576,10 @@ class LlamaCppBackend:
                     # Result was priced at zero before the call ran; tell the model now, not after three calls prove it.
                     _result_was_starved = False
                     # Nudge only on evidence of truncation: short results like 'OK' can be complete.
+                    # The starved-result notice is disabled with the room-limited result feature.
                     if (
-                        _starved_call[0]
+                        not _TOOL_RESULT_ROOM_DISABLED
+                        and _starved_call[0]
                         and isinstance(result, str)
                         and (not result.strip() or _is_window_notice(result))
                     ):
